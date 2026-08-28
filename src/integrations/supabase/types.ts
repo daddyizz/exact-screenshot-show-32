@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      blogger_connections: {
+        Row: {
+          access_token: string | null
+          blog_id: string
+          blogger_blog_id: string | null
+          blogger_blog_name: string | null
+          blogger_blog_url: string | null
+          created_at: string
+          id: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          blog_id: string
+          blogger_blog_id?: string | null
+          blogger_blog_name?: string | null
+          blogger_blog_url?: string | null
+          created_at?: string
+          id?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          blog_id?: string
+          blogger_blog_id?: string | null
+          blogger_blog_name?: string | null
+          blogger_blog_url?: string | null
+          created_at?: string
+          id?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blogger_connections_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: true
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blogs: {
         Row: {
           article_length: number
@@ -68,6 +118,8 @@ export type Database = {
       posts: {
         Row: {
           blog_id: string
+          blogger_post_id: string | null
+          blogger_url: string | null
           body: string | null
           created_at: string
           id: string
@@ -85,6 +137,8 @@ export type Database = {
         }
         Insert: {
           blog_id: string
+          blogger_post_id?: string | null
+          blogger_url?: string | null
           body?: string | null
           created_at?: string
           id?: string
@@ -102,6 +156,8 @@ export type Database = {
         }
         Update: {
           blog_id?: string
+          blogger_post_id?: string | null
+          blogger_url?: string | null
           body?: string | null
           created_at?: string
           id?: string
