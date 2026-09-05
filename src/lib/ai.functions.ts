@@ -135,3 +135,47 @@ Return JSON:
 
     return { ok: true };
   });
+
+export const generateFeaturedImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+
+    const { data: post, error: postError } = await supabase
+      .from("posts")
+      .select("id, title, keywords, blogs(name, niche)")
+      .eq("id", data.postId)
+      .maybeSingle();
+    if (postError) throw new Error(postError.message);
+    if (!post || !post.blogs) throw new Error("Post not found");
+
+    const prompt = [
+      `Create a clean, eye-catching blog featured image (16:9) for an article titled "${post.title}".`,
+      `Blog: ${post.blogs.name}. Niche: ${post.blogs.niche}.`,
+      post.keywords ? `Related keywords: ${post.keywords}.` : null,
+      "Style: modern editorial illustration, no text, no watermarks.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const dataUrl = await generateImage(prompt);
+    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+
+    const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin;
+    const path = `${data.postId}.png`;
+    const { error: uploadError } = await admin.storage
+      .from("post-images")
+      .upload(path, bytes, { contentType: "image/png", upsert: true });
+    if (uploadError) throw new Error(uploadError.message);
+
+    const imageUrl = `/api/public/post-image/${data.postId}`;
+    const { error } = await supabase
+      .from("posts")
+      .update({ image_url: imageUrl })
+      .eq("id", data.postId);
+    if (error) throw new Error(error.message);
+
+    return { imageUrl };
+  });
