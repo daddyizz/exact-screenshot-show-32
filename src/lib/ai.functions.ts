@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { blogContext, chatComplete, extractJson, slugifyServer } from "./ai.server";
+import { blogContext, chatComplete, extractJson, generateImage, slugifyServer } from "./ai.server";
 
 export const generateTopics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
