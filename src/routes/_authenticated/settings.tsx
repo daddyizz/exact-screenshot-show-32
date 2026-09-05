@@ -50,6 +50,9 @@ export const Route = createFileRoute("/_authenticated/settings")({
 function SettingsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const bloggerStatusFn = useServerFn(getBloggerStatus);
+  const startAuthFn = useServerFn(startBloggerAuth);
+  const disconnectFn = useServerFn(disconnectBlogger);
   const [displayName, setDisplayName] = useState("");
   const [blogId, setBlogId] = useState<string>("");
 
