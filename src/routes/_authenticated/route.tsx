@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ComingSoonBadge } from "@/components/ComingSoon";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -20,10 +20,14 @@ function AuthenticatedLayout() {
   const { session, loading, user } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const intended = useRef<string | null>(null);
 
   useEffect(() => {
     if (!loading && !session) {
-      void navigate({ to: "/auth", search: { next: pathname } });
+      if (!intended.current) {
+        intended.current = pathname.startsWith("/auth") ? "/dashboard" : pathname;
+      }
+      void navigate({ to: "/auth", search: { next: intended.current } });
     }
   }, [loading, session, navigate, pathname]);
 
