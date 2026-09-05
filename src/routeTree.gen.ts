@@ -16,6 +16,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedQueueRouteImport } from './routes/_authenticated/queue'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedBloggerCallbackRouteImport } from './routes/_authenticated/blogger.callback'
+import { Route as ApiPublicPostImagePostIdRouteImport } from './routes/api/public/post-image/$postId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +53,12 @@ const AuthenticatedBloggerCallbackRoute =
     path: '/blogger/callback',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicPostImagePostIdRoute =
+  ApiPublicPostImagePostIdRouteImport.update({
+    id: '/api/public/post-image/$postId',
+    path: '/api/public/post-image/$postId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -68,6 +76,7 @@ export interface FileRoutesByTo {
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,14 +87,27 @@ export interface FileRoutesById {
   '/_authenticated/queue': typeof AuthenticatedQueueRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/dashboard' | '/queue' | '/settings' | '/blogger/callback'
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/queue'
+    | '/settings'
+    | '/blogger/callback'
+    | '/api/public/post-image/$postId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/auth' | '/dashboard' | '/queue' | '/settings' | '/blogger/callback'
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/queue'
+    | '/settings'
+    | '/blogger/callback'
+    | '/api/public/post-image/$postId'
   id:
     | '__root__'
     | '/'
@@ -95,12 +117,14 @@ export interface FileRouteTypes {
     | '/_authenticated/queue'
     | '/_authenticated/settings'
     | '/_authenticated/blogger/callback'
+    | '/api/public/post-image/$postId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicPostImagePostIdRoute: typeof ApiPublicPostImagePostIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -154,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBloggerCallbackRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/post-image/$postId': {
+      id: '/api/public/post-image/$postId'
+      path: '/api/public/post-image/$postId'
+      fullPath: '/api/public/post-image/$postId'
+      preLoaderRoute: typeof ApiPublicPostImagePostIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -178,6 +209,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicPostImagePostIdRoute: ApiPublicPostImagePostIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
