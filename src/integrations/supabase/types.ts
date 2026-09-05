@@ -123,6 +123,7 @@ export type Database = {
           body: string | null
           created_at: string
           id: string
+          image_url: string | null
           keywords: string | null
           meta_description: string | null
           outline: string | null
@@ -142,6 +143,7 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           keywords?: string | null
           meta_description?: string | null
           outline?: string | null
@@ -161,6 +163,7 @@ export type Database = {
           body?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
           keywords?: string | null
           meta_description?: string | null
           outline?: string | null

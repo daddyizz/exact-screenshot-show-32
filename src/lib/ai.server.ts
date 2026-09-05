@@ -1,5 +1,6 @@
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
+const IMAGE_MODEL = "google/gemini-2.5-flash-image-preview";
 
 export type ChatMessage = { role: "system" | "user"; content: string };
 
@@ -29,6 +30,41 @@ export async function chatComplete(messages: ChatMessage[]): Promise<string> {
   const content = payload.choices?.[0]?.message?.content;
   if (!content) throw new Error("The AI returned an empty response.");
   return content;
+}
+
+/** Generate an image via the AI gateway. Returns a base64 data URL. */
+export async function generateImage(prompt: string): Promise<string> {
+  const apiKey = process.env["LOVABLE_API_KEY"];
+  if (!apiKey) throw new Error("AI is not configured for this project yet.");
+
+  const response = await fetch(GATEWAY_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: IMAGE_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      modalities: ["image", "text"],
+    }),
+  });
+
+  if (response.status === 429) throw new Error("AI rate limit reached. Try again in a moment.");
+  if (response.status === 402) throw new Error("AI credits exhausted. Top up to keep generating.");
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`AI image request failed (${response.status}): ${detail.slice(0, 200)}`);
+  }
+
+  const payload = (await response.json()) as {
+    choices?: Array<{
+      message?: { images?: Array<{ image_url?: { url?: string } }> };
+    }>;
+  };
+  const dataUrl = payload.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  if (!dataUrl?.startsWith("data:image/")) throw new Error("The AI returned no image.");
+  return dataUrl;
 }
 
 export function extractJson<T>(raw: string): T {
