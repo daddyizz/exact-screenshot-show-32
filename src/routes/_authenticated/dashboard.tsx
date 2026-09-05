@@ -26,7 +26,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ComingSoonButton } from "@/components/ComingSoon";
 import { generateTopics } from "@/lib/ai.functions";
 import { COUNTRIES, LANGUAGES, NICHES } from "@/lib/blogpilot";
 
