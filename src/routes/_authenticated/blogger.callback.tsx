@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { completeBloggerAuth, selectBloggerBlog } from "@/lib/blogger.functions";
 
-type Search = { code?: string; state?: string; error?: string };
+type Search = { code: string | undefined; state: string | undefined; error: string | undefined };
 
 export const Route = createFileRoute("/_authenticated/blogger/callback")({
   validateSearch: (search: Record<string, unknown>): Search => ({
