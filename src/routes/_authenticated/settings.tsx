@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +20,11 @@ import {
 } from "@/components/ui/select";
 import { ComingSoonBadge, ComingSoonButton } from "@/components/ComingSoon";
 import { COUNTRIES, LANGUAGES, NICHES, TONES } from "@/lib/blogpilot";
+import {
+  disconnectBlogger,
+  getBloggerStatus,
+  startBloggerAuth,
+} from "@/lib/blogger.functions";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -44,6 +50,9 @@ export const Route = createFileRoute("/_authenticated/settings")({
 function SettingsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const bloggerStatusFn = useServerFn(getBloggerStatus);
+  const startAuthFn = useServerFn(startBloggerAuth);
+  const disconnectFn = useServerFn(disconnectBlogger);
   const [displayName, setDisplayName] = useState("");
   const [blogId, setBlogId] = useState<string>("");
 
@@ -109,6 +118,34 @@ function SettingsPage() {
     onSuccess: () => {
       toast.success("Blog settings saved");
       void queryClient.invalidateQueries({ queryKey: ["blogs", user?.id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bloggerStatus = useQuery({
+    queryKey: ["blogger-status", selected?.id],
+    enabled: !!selected,
+    queryFn: () => bloggerStatusFn({ data: { blogId: selected!.id } }),
+  });
+
+  const connect = useMutation({
+    mutationFn: async () => {
+      const { url } = await startAuthFn({
+        data: {
+          blogId: selected!.id,
+          redirectUri: `${window.location.origin}/blogger/callback`,
+        },
+      });
+      window.location.href = url;
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => disconnectFn({ data: { blogId: selected!.id } }),
+    onSuccess: () => {
+      toast.success("Blogger disconnected");
+      void queryClient.invalidateQueries({ queryKey: ["blogger-status", selected?.id] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -309,15 +346,38 @@ function SettingsPage() {
       <section className="surface-panel space-y-4 p-5">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-display text-lg font-semibold">Integrations</h2>
-          <ComingSoonBadge />
         </div>
         <p className="text-sm text-muted-foreground">
-          Connect Blogger to publish approved drafts straight to your site, and add AI image
-          generation for every post. Both unlock in the paid phase.
+          Connect Blogger to publish approved drafts straight to your site.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <ComingSoonButton>Connect Blogger</ComingSoonButton>
+        {!selected ? (
+          <p className="text-sm text-muted-foreground">Create a blog first.</p>
+        ) : bloggerStatus.isLoading ? (
+          <p className="text-sm text-muted-foreground">Checking connection…</p>
+        ) : bloggerStatus.data?.connected ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm">
+              Connected to{" "}
+              <span className="font-medium">
+                {bloggerStatus.data.bloggerBlogName ?? "your Blogger account"}
+              </span>
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => disconnect.mutate()}
+              disabled={disconnect.isPending}
+            >
+              Disconnect
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
+            {connect.isPending ? "Opening Google…" : "Connect Blogger"}
+          </Button>
+        )}
+        <div className="flex flex-wrap items-center gap-2 pt-2">
           <ComingSoonButton>Enable AI images</ComingSoonButton>
+          <ComingSoonBadge />
         </div>
       </section>
     </div>

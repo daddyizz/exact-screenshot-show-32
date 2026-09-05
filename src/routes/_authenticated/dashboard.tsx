@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Rocket, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -25,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ComingSoonButton } from "@/components/ComingSoon";
+import { generateTopics } from "@/lib/ai.functions";
 import { COUNTRIES, LANGUAGES, NICHES } from "@/lib/blogpilot";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 function Dashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const generateTopicsFn = useServerFn(generateTopics);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -102,6 +104,16 @@ function Dashboard() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const planTopics = useMutation({
+    mutationFn: (id: string) => generateTopicsFn({ data: { blogId: id, count: 5 } }),
+    onSuccess: async (result) => {
+      toast.success(`${result.inserted} new topics added to the queue`);
+      await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+      await queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const totalPosts = posts.data?.length ?? 0;
   const published = posts.data?.filter((p) => p.status === "published").length ?? 0;
 
@@ -113,10 +125,12 @@ function Dashboard() {
           <h1 className="mt-1 text-3xl font-bold">Your blogs</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ComingSoonButton>
-            <Rocket aria-hidden />
-            Connect Blogger
-          </ComingSoonButton>
+          <Button variant="secondary" asChild>
+            <Link to="/settings">
+              <Rocket aria-hidden />
+              Connect Blogger
+            </Link>
+          </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -274,7 +288,16 @@ function Dashboard() {
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/queue">Queue</Link>
                 </Button>
-                <ComingSoonButton size="sm">Generate article</ComingSoonButton>
+                <Button
+                  size="sm"
+                  onClick={() => planTopics.mutate(blog.id)}
+                  disabled={planTopics.isPending}
+                >
+                  <Sparkles aria-hidden />
+                  {planTopics.isPending && planTopics.variables === blog.id
+                    ? "Planning…"
+                    : "Plan topics"}
+                </Button>
               </div>
             </div>
           ))}

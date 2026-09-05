@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { ExternalLink, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ComingSoonButton } from "@/components/ComingSoon";
+import { generateArticle, generateTopics } from "@/lib/ai.functions";
+import { publishToBlogger } from "@/lib/blogger.functions";
 import { POST_STATUSES, slugify, statusLabel } from "@/lib/blogpilot";
 
 export const Route = createFileRoute("/_authenticated/queue")({
@@ -44,6 +46,9 @@ export const Route = createFileRoute("/_authenticated/queue")({
 function QueuePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const generateTopicsFn = useServerFn(generateTopics);
+  const generateArticleFn = useServerFn(generateArticle);
+  const publishFn = useServerFn(publishToBlogger);
   const [blogId, setBlogId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [outline, setOutline] = useState("");
@@ -135,6 +140,36 @@ function QueuePage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const planTopics = useMutation({
+    mutationFn: () => generateTopicsFn({ data: { blogId, count: 5 } }),
+    onSuccess: async (result) => {
+      toast.success(`${result.inserted} topics added`);
+      await queryClient.invalidateQueries({ queryKey: ["posts", blogId] });
+      await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const writeArticle = useMutation({
+    mutationFn: (id: string) => generateArticleFn({ data: { postId: id } }),
+    onSuccess: async () => {
+      toast.success("Draft written");
+      await queryClient.invalidateQueries({ queryKey: ["posts", blogId] });
+      await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const publish = useMutation({
+    mutationFn: (id: string) => publishFn({ data: { postId: id } }),
+    onSuccess: async () => {
+      toast.success("Published to Blogger");
+      await queryClient.invalidateQueries({ queryKey: ["posts", blogId] });
+      await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   if (!blogs.isLoading && (blogs.data?.length ?? 0) === 0) {
     return (
       <div className="surface-panel p-10 text-center">
@@ -210,9 +245,15 @@ function QueuePage() {
               <Plus aria-hidden />
               Queue topic
             </Button>
-            <ComingSoonButton className="w-full" variant="outline">
-              Auto-plan 10 topics with AI
-            </ComingSoonButton>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => planTopics.mutate()}
+              disabled={!blogId || planTopics.isPending}
+            >
+              <Sparkles aria-hidden />
+              {planTopics.isPending ? "Planning…" : "Auto-plan 5 topics with AI"}
+            </Button>
           </div>
         </div>
 
@@ -256,8 +297,38 @@ function QueuePage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <ComingSoonButton size="sm">Write with AI</ComingSoonButton>
-                  <ComingSoonButton size="sm">Publish to Blogger</ComingSoonButton>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => writeArticle.mutate(post.id)}
+                    disabled={writeArticle.isPending}
+                  >
+                    <Sparkles aria-hidden />
+                    {writeArticle.isPending && writeArticle.variables === post.id
+                      ? "Writing…"
+                      : post.body
+                        ? "Rewrite with AI"
+                        : "Write with AI"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => publish.mutate(post.id)}
+                    disabled={!post.body || publish.isPending}
+                  >
+                    <Upload aria-hidden />
+                    {publish.isPending && publish.variables === post.id
+                      ? "Publishing…"
+                      : "Publish to Blogger"}
+                  </Button>
+                  {post.blogger_url ? (
+                    <Button size="sm" variant="ghost" asChild>
+                      <a href={post.blogger_url} target="_blank" rel="noreferrer">
+                        <ExternalLink aria-hidden />
+                        View live
+                      </a>
+                    </Button>
+                  ) : null}
                   <Button
                     variant="ghost"
                     size="icon"

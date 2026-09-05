@@ -181,3 +181,21 @@ export const publishToBlogger = createServerFn({ method: "POST" })
 
     return { url: published.url };
   });
+
+export const getBloggerStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ blogId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("blogger_connections")
+      .select("blogger_blog_id, blogger_blog_name, blogger_blog_url")
+      .eq("blog_id", data.blogId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return {
+      connected: Boolean(row),
+      bloggerBlogId: row?.blogger_blog_id ?? null,
+      bloggerBlogName: row?.blogger_blog_name ?? null,
+      bloggerBlogUrl: row?.blogger_blog_url ?? null,
+    };
+  });
