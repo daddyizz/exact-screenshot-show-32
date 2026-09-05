@@ -113,6 +113,34 @@ function SettingsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const bloggerStatus = useQuery({
+    queryKey: ["blogger-status", selected?.id],
+    enabled: !!selected,
+    queryFn: () => bloggerStatusFn({ data: { blogId: selected!.id } }),
+  });
+
+  const connect = useMutation({
+    mutationFn: async () => {
+      const { url } = await startAuthFn({
+        data: {
+          blogId: selected!.id,
+          redirectUri: `${window.location.origin}/blogger/callback`,
+        },
+      });
+      window.location.href = url;
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => disconnectFn({ data: { blogId: selected!.id } }),
+    onSuccess: () => {
+      toast.success("Blogger disconnected");
+      void queryClient.invalidateQueries({ queryKey: ["blogger-status", selected?.id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <div className="space-y-8">
       <header>
