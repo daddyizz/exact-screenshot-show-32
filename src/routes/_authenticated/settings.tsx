@@ -309,15 +309,38 @@ function SettingsPage() {
       <section className="surface-panel space-y-4 p-5">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-display text-lg font-semibold">Integrations</h2>
-          <ComingSoonBadge />
         </div>
         <p className="text-sm text-muted-foreground">
-          Connect Blogger to publish approved drafts straight to your site, and add AI image
-          generation for every post. Both unlock in the paid phase.
+          Connect Blogger to publish approved drafts straight to your site.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <ComingSoonButton>Connect Blogger</ComingSoonButton>
+        {!selected ? (
+          <p className="text-sm text-muted-foreground">Create a blog first.</p>
+        ) : bloggerStatus.isLoading ? (
+          <p className="text-sm text-muted-foreground">Checking connection…</p>
+        ) : bloggerStatus.data?.connected ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm">
+              Connected to{" "}
+              <span className="font-medium">
+                {bloggerStatus.data.bloggerBlogName ?? "your Blogger account"}
+              </span>
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => disconnect.mutate()}
+              disabled={disconnect.isPending}
+            >
+              Disconnect
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
+            {connect.isPending ? "Opening Google…" : "Connect Blogger"}
+          </Button>
+        )}
+        <div className="flex flex-wrap items-center gap-2 pt-2">
           <ComingSoonButton>Enable AI images</ComingSoonButton>
+          <ComingSoonBadge />
         </div>
       </section>
     </div>
