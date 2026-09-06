@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Plus, Sparkles, Trash2, Upload } from "lucide-react";
+import { ExternalLink, ImagePlus, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { generateArticle, generateTopics } from "@/lib/ai.functions";
+import { generateArticle, generateFeaturedImage, generateTopics } from "@/lib/ai.functions";
 import { publishToBlogger } from "@/lib/blogger.functions";
 import { POST_STATUSES, slugify, statusLabel } from "@/lib/blogpilot";
 
@@ -49,6 +49,7 @@ function QueuePage() {
   const generateTopicsFn = useServerFn(generateTopics);
   const generateArticleFn = useServerFn(generateArticle);
   const publishFn = useServerFn(publishToBlogger);
+  const imageFn = useServerFn(generateFeaturedImage);
   const [blogId, setBlogId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [outline, setOutline] = useState("");
@@ -160,8 +161,18 @@ function QueuePage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const makeImage = useMutation({
+    mutationFn: (id: string) => imageFn({ data: { postId: id } }),
+    onSuccess: async () => {
+      toast.success("Featured image ready");
+      await queryClient.invalidateQueries({ queryKey: ["posts", blogId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const publish = useMutation({
-    mutationFn: (id: string) => publishFn({ data: { postId: id } }),
+    mutationFn: (id: string) =>
+      publishFn({ data: { postId: id, origin: window.location.origin } }),
     onSuccess: async () => {
       toast.success("Published to Blogger");
       await queryClient.invalidateQueries({ queryKey: ["posts", blogId] });
@@ -278,6 +289,14 @@ function QueuePage() {
                     {statusLabel(post.status)}
                   </Badge>
                 </div>
+                {post.image_url ? (
+                  <img
+                    src={post.image_url}
+                    alt={`Featured image for ${post.title}`}
+                    loading="lazy"
+                    className="mt-3 aspect-video w-full max-w-sm rounded-md border border-border object-cover"
+                  />
+                ) : null}
                 {post.outline ? (
                   <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{post.outline}</p>
                 ) : null}
@@ -309,6 +328,19 @@ function QueuePage() {
                       : post.body
                         ? "Rewrite with AI"
                         : "Write with AI"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => makeImage.mutate(post.id)}
+                    disabled={makeImage.isPending}
+                  >
+                    <ImagePlus aria-hidden />
+                    {makeImage.isPending && makeImage.variables === post.id
+                      ? "Generating…"
+                      : post.image_url
+                        ? "Regenerate image"
+                        : "AI image"}
                   </Button>
                   <Button
                     size="sm"

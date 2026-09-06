@@ -118,7 +118,9 @@ export const disconnectBlogger = createServerFn({ method: "POST" })
 
 export const publishToBlogger = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
+  .inputValidator((data) =>
+    z.object({ postId: z.string().uuid(), origin: z.string().url().optional() }).parse(data),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
@@ -158,9 +160,14 @@ export const publishToBlogger = createServerFn({ method: "POST" })
         .eq("id", connection.id);
     }
 
+    const imageHtml =
+      post.image_url && data.origin
+        ? `<p><img src="${data.origin}${post.image_url}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n`
+        : "";
+
     const published = await createBloggerPost(accessToken, connection.blogger_blog_id, {
       title: post.seo_title || post.title,
-      content: markdownToHtml(post.body),
+      content: imageHtml + markdownToHtml(post.body),
       labels: (post.keywords ?? "")
         .split(",")
         .map((k) => k.trim())
