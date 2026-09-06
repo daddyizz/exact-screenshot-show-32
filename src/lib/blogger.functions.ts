@@ -118,7 +118,9 @@ export const disconnectBlogger = createServerFn({ method: "POST" })
 
 export const publishToBlogger = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
+  .inputValidator((data) =>
+    z.object({ postId: z.string().uuid(), origin: z.string().url().optional() }).parse(data),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
