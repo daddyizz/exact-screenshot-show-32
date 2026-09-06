@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { generateArticle, generateTopics } from "@/lib/ai.functions";
+import { generateArticle, generateFeaturedImage, generateTopics } from "@/lib/ai.functions";
 import { publishToBlogger } from "@/lib/blogger.functions";
 import { POST_STATUSES, slugify, statusLabel } from "@/lib/blogpilot";
 

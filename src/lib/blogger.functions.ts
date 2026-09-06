@@ -160,9 +160,14 @@ export const publishToBlogger = createServerFn({ method: "POST" })
         .eq("id", connection.id);
     }
 
+    const imageHtml =
+      post.image_url && data.origin
+        ? `<p><img src="${data.origin}${post.image_url}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n`
+        : "";
+
     const published = await createBloggerPost(accessToken, connection.blogger_blog_id, {
       title: post.seo_title || post.title,
-      content: markdownToHtml(post.body),
+      content: imageHtml + markdownToHtml(post.body),
       labels: (post.keywords ?? "")
         .split(",")
         .map((k) => k.trim())
