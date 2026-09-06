@@ -375,10 +375,10 @@ function SettingsPage() {
             {connect.isPending ? "Opening Google…" : "Connect Blogger"}
           </Button>
         )}
-        <div className="flex flex-wrap items-center gap-2 pt-2">
-          <ComingSoonButton>Enable AI images</ComingSoonButton>
-          <ComingSoonBadge />
-        </div>
+        <p className="pt-2 text-sm text-muted-foreground">
+          AI featured images are available per post in the content queue — click “AI image” on any
+          article.
+        </p>
       </section>
     </div>
   );
