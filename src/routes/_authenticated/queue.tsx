@@ -289,6 +289,14 @@ function QueuePage() {
                     {statusLabel(post.status)}
                   </Badge>
                 </div>
+                {post.image_url ? (
+                  <img
+                    src={post.image_url}
+                    alt={`Featured image for ${post.title}`}
+                    loading="lazy"
+                    className="mt-3 aspect-video w-full max-w-sm rounded-md border border-border object-cover"
+                  />
+                ) : null}
                 {post.outline ? (
                   <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{post.outline}</p>
                 ) : null}
@@ -320,6 +328,19 @@ function QueuePage() {
                       : post.body
                         ? "Rewrite with AI"
                         : "Write with AI"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => makeImage.mutate(post.id)}
+                    disabled={makeImage.isPending}
+                  >
+                    <ImagePlus aria-hidden />
+                    {makeImage.isPending && makeImage.variables === post.id
+                      ? "Generating…"
+                      : post.image_url
+                        ? "Regenerate image"
+                        : "AI image"}
                   </Button>
                   <Button
                     size="sm"
