@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Plus, Sparkles, Trash2, Upload } from "lucide-react";
+import { ExternalLink, ImagePlus, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +49,7 @@ function QueuePage() {
   const generateTopicsFn = useServerFn(generateTopics);
   const generateArticleFn = useServerFn(generateArticle);
   const publishFn = useServerFn(publishToBlogger);
+  const imageFn = useServerFn(generateFeaturedImage);
   const [blogId, setBlogId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [outline, setOutline] = useState("");
@@ -160,8 +161,18 @@ function QueuePage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const makeImage = useMutation({
+    mutationFn: (id: string) => imageFn({ data: { postId: id } }),
+    onSuccess: async () => {
+      toast.success("Featured image ready");
+      await queryClient.invalidateQueries({ queryKey: ["posts", blogId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const publish = useMutation({
-    mutationFn: (id: string) => publishFn({ data: { postId: id } }),
+    mutationFn: (id: string) =>
+      publishFn({ data: { postId: id, origin: window.location.origin } }),
     onSuccess: async () => {
       toast.success("Published to Blogger");
       await queryClient.invalidateQueries({ queryKey: ["posts", blogId] });
