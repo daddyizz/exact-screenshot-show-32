@@ -16,6 +16,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedQueueRouteImport } from './routes/_authenticated/queue'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedBloggerCallbackRouteImport } from './routes/_authenticated/blogger.callback'
+import { Route as ApiPublicCronAutopilotRouteImport } from './routes/api/public/cron/autopilot'
 import { Route as ApiPublicPostImagePostIdRouteImport } from './routes/api/public/post-image/$postId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -53,6 +54,11 @@ const AuthenticatedBloggerCallbackRoute =
     path: '/blogger/callback',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicCronAutopilotRoute = ApiPublicCronAutopilotRouteImport.update({
+  id: '/api/public/cron/autopilot',
+  path: '/api/public/cron/autopilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPostImagePostIdRoute =
   ApiPublicPostImagePostIdRouteImport.update({
     id: '/api/public/post-image/$postId',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
 export interface FileRoutesByTo {
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
 export interface FileRoutesById {
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/_authenticated/queue': typeof AuthenticatedQueueRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
 export interface FileRouteTypes {
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/settings'
     | '/blogger/callback'
+    | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/settings'
     | '/blogger/callback'
+    | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   id:
     | '__root__'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/_authenticated/queue'
     | '/_authenticated/settings'
     | '/_authenticated/blogger/callback'
+    | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   fileRoutesById: FileRoutesById
 }
@@ -124,6 +136,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicCronAutopilotRoute: typeof ApiPublicCronAutopilotRoute
   ApiPublicPostImagePostIdRoute: typeof ApiPublicPostImagePostIdRoute
 }
 
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBloggerCallbackRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/cron/autopilot': {
+      id: '/api/public/cron/autopilot'
+      path: '/api/public/cron/autopilot'
+      fullPath: '/api/public/cron/autopilot'
+      preLoaderRoute: typeof ApiPublicCronAutopilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/post-image/$postId': {
       id: '/api/public/post-image/$postId'
       path: '/api/public/post-image/$postId'
@@ -209,6 +229,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicCronAutopilotRoute: ApiPublicCronAutopilotRoute,
   ApiPublicPostImagePostIdRoute: ApiPublicPostImagePostIdRoute,
 }
 export const routeTree = rootRouteImport
