@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ComingSoonBadge } from "@/components/ComingSoon";
 import { COUNTRIES, LANGUAGES, NICHES, TONES } from "@/lib/blogpilot";
 import {
   disconnectBlogger,
