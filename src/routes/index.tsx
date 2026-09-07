@@ -157,6 +157,12 @@ function Landing() {
           </div>
         </section>
 
+        <div className="mx-auto max-w-6xl px-4 pb-4">
+          <AdSlot id="landing-mid" format="leaderboard" />
+        </div>
+
+
+
         <section className="border-y border-border bg-card/40">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
             <p className="text-eyebrow">How it works</p>
