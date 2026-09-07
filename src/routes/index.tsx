@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComingSoonBadge } from "@/components/ComingSoon";
+import { AdSlot } from "@/components/AdSlot";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/")({
