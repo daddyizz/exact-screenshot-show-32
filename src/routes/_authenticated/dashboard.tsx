@@ -378,6 +378,8 @@ function Dashboard() {
           ))}
         </div>
       )}
+
+      <AdSlot id="dashboard-bottom" format="leaderboard" />
     </div>
   );
 }
