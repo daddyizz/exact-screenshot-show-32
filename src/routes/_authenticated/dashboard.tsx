@@ -107,6 +107,36 @@ function Dashboard() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const autopilotFn = useServerFn(updateAutopilot);
+  const runNowFn = useServerFn(runAutopilotNow);
+
+  const toggleAutopilot = useMutation({
+    mutationFn: (vars: { blogId: string; autopilot?: boolean; autoPublish?: boolean }) =>
+      autopilotFn({ data: vars }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const runNow = useMutation({
+    mutationFn: (blogId: string) =>
+      runNowFn({ data: { blogId, origin: window.location.origin } }),
+    onSuccess: async (result) => {
+      toast.success(
+        result.status === "published"
+          ? `Published: ${result.detail}`
+          : result.status === "drafted"
+            ? `Draft ready: ${result.detail}`
+            : result.detail,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+      await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+      await queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const planTopics = useMutation({
     mutationFn: (id: string) => generateTopicsFn({ data: { blogId: id, count: 5 } }),
     onSuccess: async (result) => {
