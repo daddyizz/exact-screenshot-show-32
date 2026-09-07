@@ -15,11 +15,16 @@ export const updateAutopilot = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = {};
-    if (data.autopilot !== undefined) patch["autopilot"] = data.autopilot;
-    if (data.autoPublish !== undefined) patch["autopilot_auto_publish"] = data.autoPublish;
-    if (data.postsPerWeek !== undefined) patch["posts_per_week"] = data.postsPerWeek;
+    const patch: {
+      autopilot?: boolean;
+      autopilot_auto_publish?: boolean;
+      posts_per_week?: number;
+    } = {};
+    if (data.autopilot !== undefined) patch.autopilot = data.autopilot;
+    if (data.autoPublish !== undefined) patch.autopilot_auto_publish = data.autoPublish;
+    if (data.postsPerWeek !== undefined) patch.posts_per_week = data.postsPerWeek;
     if (Object.keys(patch).length === 0) return { ok: true };
+
 
     const { error } = await context.supabase.from("blogs").update(patch).eq("id", data.blogId);
     if (error) throw new Error(error.message);

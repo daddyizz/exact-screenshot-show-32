@@ -57,23 +57,25 @@ function AuthenticatedLayout() {
             BlogPilot<span className="text-primary">.</span>AI
           </Link>
           <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
-            {nav.map((item) => {
-              const active = pathname === item.to;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                    active
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <item.icon className="size-4" aria-hidden />
-                  <span className="hidden sm:inline">{item.label}</span>
-                </Link>
-              );
-            })}
+            {[...nav, ...(admin.data?.isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield } as const] : [])].map(
+              (item) => {
+                const active = pathname === item.to;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                      active
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <item.icon className="size-4" aria-hidden />
+                    <span className="hidden sm:inline">{item.label}</span>
+                  </Link>
+                );
+              },
+            )}
           </nav>
           <span className="hidden text-xs text-muted-foreground md:inline">{user?.email}</span>
           <Button
@@ -91,13 +93,10 @@ function AuthenticatedLayout() {
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-md border border-primary/25 bg-accent/40 px-4 py-3 text-sm text-muted-foreground">
-          <ComingSoonBadge />
-          AI writing, image generation and auto-publishing to Blogger unlock in the paid phase.
-          Everything else below is fully usable now.
-        </div>
+        <AdSlot id="app-top" format="leaderboard" className="mb-6" />
         <Outlet />
       </div>
+
     </div>
   );
 }

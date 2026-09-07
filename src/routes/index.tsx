@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComingSoonBadge } from "@/components/ComingSoon";
+import { AdSlot } from "@/components/AdSlot";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/")({
@@ -156,6 +157,12 @@ function Landing() {
             ))}
           </div>
         </section>
+
+        <div className="mx-auto max-w-6xl px-4 pb-4">
+          <AdSlot id="landing-mid" format="leaderboard" />
+        </div>
+
+
 
         <section className="border-y border-border bg-card/40">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
