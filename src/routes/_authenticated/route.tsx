@@ -37,7 +37,7 @@ function AuthenticatedLayout() {
   const amIAdminFn = useServerFn(amIAdmin);
   const admin = useQuery({
     queryKey: ["am-i-admin"],
-    queryFn: () => amIAdminFn({ data: undefined }),
+    queryFn: () => amIAdminFn(),
     enabled: Boolean(session),
   });
 
