@@ -34,6 +34,13 @@ function AuthenticatedLayout() {
     }
   }, [loading, session, navigate, pathname]);
 
+  const amIAdminFn = useServerFn(amIAdmin);
+  const admin = useQuery({
+    queryKey: ["am-i-admin"],
+    queryFn: () => amIAdminFn({ data: undefined }),
+    enabled: Boolean(session),
+  });
+
   if (loading || !session) {
     return (
       <div className="flex min-h-screen items-center justify-center">
