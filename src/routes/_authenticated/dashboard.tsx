@@ -362,6 +362,17 @@ function Dashboard() {
                     ? "Planning…"
                     : "Plan topics"}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => runNow.mutate(blog.id)}
+                  disabled={runNow.isPending}
+                >
+                  <PlayCircle aria-hidden />
+                  {runNow.isPending && runNow.variables === blog.id
+                    ? "Running…"
+                    : "Run autopilot now"}
+                </Button>
               </div>
             </div>
           ))}
