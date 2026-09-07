@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Rocket, Sparkles } from "lucide-react";
+import { PlayCircle, Plus, Rocket, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { generateTopics } from "@/lib/ai.functions";
+import { runAutopilotNow, updateAutopilot } from "@/lib/autopilot.functions";
+import { Switch } from "@/components/ui/switch";
+import { AdSlot } from "@/components/AdSlot";
 import { COUNTRIES, LANGUAGES, NICHES } from "@/lib/blogpilot";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
