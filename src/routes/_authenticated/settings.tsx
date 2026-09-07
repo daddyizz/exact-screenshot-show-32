@@ -331,14 +331,17 @@ function SettingsPage() {
               <div>
                 <p className="text-sm font-medium">Autopilot publishing</p>
                 <p className="text-sm text-muted-foreground">
-                  Automatically draft and publish on your cadence.
+                  Automatically draft and publish on your cadence. Fine-tune and run it from
+                  Overview.
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <ComingSoonBadge />
-                <Switch checked={false} disabled aria-label="Autopilot publishing" />
-              </div>
+              <Switch
+                checked={Boolean(selected.autopilot)}
+                onCheckedChange={(checked) => saveBlog.mutate({ autopilot: checked })}
+                aria-label="Autopilot publishing"
+              />
             </div>
+
           </div>
         )}
       </section>
