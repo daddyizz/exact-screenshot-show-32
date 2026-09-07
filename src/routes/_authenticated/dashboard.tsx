@@ -107,6 +107,36 @@ function Dashboard() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const autopilotFn = useServerFn(updateAutopilot);
+  const runNowFn = useServerFn(runAutopilotNow);
+
+  const toggleAutopilot = useMutation({
+    mutationFn: (vars: { blogId: string; autopilot?: boolean; autoPublish?: boolean }) =>
+      autopilotFn({ data: vars }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const runNow = useMutation({
+    mutationFn: (blogId: string) =>
+      runNowFn({ data: { blogId, origin: window.location.origin } }),
+    onSuccess: async (result) => {
+      toast.success(
+        result.status === "published"
+          ? `Published: ${result.detail}`
+          : result.status === "drafted"
+            ? `Draft ready: ${result.detail}`
+            : result.detail,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+      await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+      await queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const planTopics = useMutation({
     mutationFn: (id: string) => generateTopicsFn({ data: { blogId: id, count: 5 } }),
     onSuccess: async (result) => {
@@ -284,6 +314,37 @@ function Dashboard() {
                 {blog.posts_per_week} posts/week ·{" "}
                 {posts.data?.filter((p) => p.blog_id === blog.id).length ?? 0} in queue
               </p>
+              <div className="mt-4 space-y-3 rounded-lg border border-border/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor={`autopilot-${blog.id}`} className="text-sm">
+                    Autopilot
+                  </Label>
+                  <Switch
+                    id={`autopilot-${blog.id}`}
+                    checked={Boolean(blog.autopilot)}
+                    onCheckedChange={(checked) =>
+                      toggleAutopilot.mutate({ blogId: blog.id, autopilot: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor={`autopublish-${blog.id}`} className="text-sm">
+                    Publish automatically to Blogger
+                  </Label>
+                  <Switch
+                    id={`autopublish-${blog.id}`}
+                    checked={Boolean(blog.autopilot_auto_publish)}
+                    onCheckedChange={(checked) =>
+                      toggleAutopilot.mutate({ blogId: blog.id, autoPublish: checked })
+                    }
+                  />
+                </div>
+                {blog.autopilot_last_run_at ? (
+                  <p className="text-xs text-muted-foreground">
+                    Last run: {new Date(blog.autopilot_last_run_at).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/settings">Configure</Link>
@@ -301,11 +362,24 @@ function Dashboard() {
                     ? "Planning…"
                     : "Plan topics"}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => runNow.mutate(blog.id)}
+                  disabled={runNow.isPending}
+                >
+                  <PlayCircle aria-hidden />
+                  {runNow.isPending && runNow.variables === blog.id
+                    ? "Running…"
+                    : "Run autopilot now"}
+                </Button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <AdSlot id="dashboard-bottom" format="leaderboard" />
     </div>
   );
 }

@@ -1,9 +1,12 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, LogOut, Notebook, Settings } from "lucide-react";
+import { LayoutDashboard, LogOut, Notebook, Settings, Shield } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ComingSoonBadge } from "@/components/ComingSoon";
+import { AdSlot } from "@/components/AdSlot";
+import { amIAdmin } from "@/lib/admin.functions";
 import { useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -30,6 +33,13 @@ function AuthenticatedLayout() {
       void navigate({ to: "/auth", search: { next: intended.current } });
     }
   }, [loading, session, navigate, pathname]);
+
+  const amIAdminFn = useServerFn(amIAdmin);
+  const admin = useQuery({
+    queryKey: ["am-i-admin"],
+    queryFn: () => amIAdminFn(),
+    enabled: Boolean(session),
+  });
 
   if (loading || !session) {
     return (
