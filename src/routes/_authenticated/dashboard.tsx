@@ -314,6 +314,37 @@ function Dashboard() {
                 {blog.posts_per_week} posts/week ·{" "}
                 {posts.data?.filter((p) => p.blog_id === blog.id).length ?? 0} in queue
               </p>
+              <div className="mt-4 space-y-3 rounded-lg border border-border/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor={`autopilot-${blog.id}`} className="text-sm">
+                    Autopilot
+                  </Label>
+                  <Switch
+                    id={`autopilot-${blog.id}`}
+                    checked={Boolean(blog.autopilot)}
+                    onCheckedChange={(checked) =>
+                      toggleAutopilot.mutate({ blogId: blog.id, autopilot: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor={`autopublish-${blog.id}`} className="text-sm">
+                    Publish automatically to Blogger
+                  </Label>
+                  <Switch
+                    id={`autopublish-${blog.id}`}
+                    checked={Boolean(blog.autopilot_auto_publish)}
+                    onCheckedChange={(checked) =>
+                      toggleAutopilot.mutate({ blogId: blog.id, autoPublish: checked })
+                    }
+                  />
+                </div>
+                {blog.autopilot_last_run_at ? (
+                  <p className="text-xs text-muted-foreground">
+                    Last run: {new Date(blog.autopilot_last_run_at).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/settings">Configure</Link>
