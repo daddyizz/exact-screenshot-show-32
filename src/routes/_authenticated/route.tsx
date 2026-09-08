@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, LogOut, Notebook, Settings, Shield } from "lucide-react";
+import { FileText, LayoutDashboard, LogOut, Notebook, Settings, Shield } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_authenticated")({
 const nav = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/queue", label: "Content queue", icon: Notebook },
+  { to: "/articles", label: "Articles", icon: FileText },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
