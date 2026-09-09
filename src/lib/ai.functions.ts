@@ -3,6 +3,13 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { blogContext, chatComplete, extractJson, generateImage, slugifyServer } from "./ai.server";
 
+async function consumeUsage(kind: "draft" | "image", userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const fn = kind === "draft" ? "consume_ai_draft_usage" : "consume_ai_image_usage";
+  const { error } = await (supabaseAdmin as any).rpc(fn, { p_user_id: userId });
+  if (error) throw new Error(error.message);
+}
+
 export const generateTopics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
@@ -34,14 +41,7 @@ export const generateTopics = createServerFn({ method: "POST" })
       },
       {
         role: "user",
-        content: `${blogContext(blog)}
-
-Propose ${data.count} new blog post ideas with genuine search demand for this audience.
-Avoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.
-Write everything in the blog's language.
-
-Return a JSON array where each item is:
-{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}`,
+        content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}`,
       },
     ]);
 
@@ -81,7 +81,7 @@ export const generateArticle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
 
     const { data: post, error: postError } = await supabase
       .from("posts")
@@ -90,6 +90,8 @@ export const generateArticle = createServerFn({ method: "POST" })
       .maybeSingle();
     if (postError) throw new Error(postError.message);
     if (!post || !post.blogs) throw new Error("Post not found");
+
+    await consumeUsage("draft", userId);
 
     const blog = post.blogs;
 
@@ -101,16 +103,7 @@ export const generateArticle = createServerFn({ method: "POST" })
       },
       {
         role: "user",
-        content: `${blogContext(blog)}
-
-Write a complete, original blog article.
-Title: ${post.title}
-${post.outline ? `Outline to follow:\n${post.outline}` : ""}
-Target length: about ${blog.article_length} words.
-Use clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.
-
-Return JSON:
-{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
+        content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
       },
     ]);
 
@@ -140,7 +133,7 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
 
     const { data: post, error: postError } = await supabase
       .from("posts")
@@ -149,6 +142,8 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
       .maybeSingle();
     if (postError) throw new Error(postError.message);
     if (!post || !post.blogs) throw new Error("Post not found");
+
+    await consumeUsage("image", userId);
 
     const prompt = [
       `Create a clean, eye-catching blog featured image (16:9) for an article titled "${post.title}".`,
