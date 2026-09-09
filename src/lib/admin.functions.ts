@@ -26,85 +26,10 @@ export const adminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as any;
-    const periodStart = new Date();
-    periodStart.setUTCDate(1);
-    periodStart.setUTCHours(0, 0, 0, 0);
-    const period = periodStart.toISOString().slice(0, 10);
-
-    const [profiles, blogs, posts, roles, subscriptions, usage, authUsers] = await Promise.all([
-      admin.from("profiles").select("id, display_name, created_at, updated_at"),
-      admin.from("blogs").select("id, user_id, name, autopilot, posts_per_week"),
-      admin.from("posts").select("id, user_id, status"),
-      admin.from("user_roles").select("user_id, role"),
-      admin.from("user_subscriptions").select("user_id, plan, status, billing_provider, current_period_end, cancel_at_period_end, updated_at"),
-      admin.from("monthly_usage").select("user_id, ai_drafts, ai_images, autopilot_runs").eq("period_start", period),
-      admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    ]);
-
-    const err = profiles.error || blogs.error || posts.error || roles.error || subscriptions.error || usage.error || authUsers.error;
-    if (err) throw new Error(err.message);
-
-    const authMap = new Map((authUsers.data?.users ?? []).map((u: any) => [u.id, u]));
-    const subMap = new Map((subscriptions.data ?? []).map((s: any) => [s.user_id, s]));
-    const usageMap = new Map((usage.data ?? []).map((u: any) => [u.user_id, u]));
-
-    const users = (profiles.data ?? []).map((p: any) => {
-      const userBlogs = (blogs.data ?? []).filter((b: any) => b.user_id === p.id);
-      const userPosts = (posts.data ?? []).filter((x: any) => x.user_id === p.id);
-      const authUser = authMap.get(p.id) as any;
-      const subscription = (subMap.get(p.id) as any) ?? {
-        plan: "free",
-        status: "active",
-        billing_provider: "manual",
-        current_period_end: null,
-        cancel_at_period_end: false,
-      };
-      const monthly = (usageMap.get(p.id) as any) ?? { ai_drafts: 0, ai_images: 0, autopilot_runs: 0 };
-      return {
-        id: p.id,
-        displayName: p.display_name ?? authUser?.user_metadata?.full_name ?? "(no name)",
-        email: authUser?.email ?? "",
-        createdAt: p.created_at,
-        lastSignInAt: authUser?.last_sign_in_at ?? null,
-        blogs: userBlogs.length,
-        autopilotBlogs: userBlogs.filter((b: any) => b.autopilot).length,
-        posts: userPosts.length,
-        published: userPosts.filter((x: any) => x.status === "published").length,
-        roles: (roles.data ?? []).filter((r: any) => r.user_id === p.id).map((r: any) => r.role as string),
-        plan: subscription.plan as "free" | "pro",
-        subscriptionStatus: subscription.status as string,
-        billingProvider: subscription.billing_provider as string,
-        currentPeriodEnd: subscription.current_period_end as string | null,
-        cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
-        usage: {
-          aiDrafts: monthly.ai_drafts ?? 0,
-          aiImages: monthly.ai_images ?? 0,
-          autopilotRuns: monthly.autopilot_runs ?? 0,
-        },
-      };
-    });
-
-    users.sort((a: any, b: any) => (a.createdAt < b.createdAt ? 1 : -1));
-    const proUsers = users.filter((u: any) => u.plan === "pro" && ["active", "trialing"].includes(u.subscriptionStatus)).length;
-    const freeUsers = users.length - proUsers;
-
-    return {
-      totals: {
-        users: users.length,
-        freeUsers,
-        proUsers,
-        mrr: proUsers * 49,
-        blogs: blogs.data?.length ?? 0,
-        posts: posts.data?.length ?? 0,
-        published: (posts.data ?? []).filter((p: any) => p.status === "published").length,
-        autopilotBlogs: (blogs.data ?? []).filter((b: any) => b.autopilot).length,
-        aiDrafts: (usage.data ?? []).reduce((sum: number, row: any) => sum + (row.ai_drafts ?? 0), 0),
-        aiImages: (usage.data ?? []).reduce((sum: number, row: any) => sum + (row.ai_images ?? 0), 0),
-      },
-      users,
-    };
+    const { data, error } = await (context.supabase as any).rpc("admin_console_snapshot");
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error("Admin console returned no data");
+    return data;
   });
 
 export const setUserRole = createServerFn({ method: "POST" })
