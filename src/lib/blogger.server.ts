@@ -122,6 +122,35 @@ export async function createBloggerPost(
   return { id: payload.id, url: payload.url };
 }
 
+export async function updateBloggerPost(
+  accessToken: string,
+  bloggerBlogId: string,
+  bloggerPostId: string,
+  input: { title: string; content: string; labels?: string[] },
+): Promise<{ id: string; url: string }> {
+  const response = await fetch(
+    `https://www.googleapis.com/blogger/v3/blogs/${bloggerBlogId}/posts/${bloggerPostId}?publish=true&revert=false`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        kind: "blogger#post",
+        id: bloggerPostId,
+        title: input.title,
+        content: input.content,
+        labels: input.labels ?? [],
+      }),
+    },
+  );
+  if (!response.ok)
+    throw new Error(`Blogger rejected the update: ${(await response.text()).slice(0, 200)}`);
+  const payload = (await response.json()) as { id: string; url: string };
+  return { id: payload.id, url: payload.url };
+}
+
 /** Minimal markdown -> HTML for Blogger post bodies. */
 export function markdownToHtml(markdown: string): string {
   const escaped = markdown
