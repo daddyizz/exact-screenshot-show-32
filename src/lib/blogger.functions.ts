@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
+  bloggerOAuthConfig,
+  bloggerRedirectUri,
   buildAuthUrl,
   createBloggerPost,
   exchangeCode,
@@ -11,10 +13,15 @@ import {
   tokenExpiry,
 } from "./blogger.server";
 
+export const getBloggerOAuthConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ redirectUri: z.string().url().optional() }).parse(data ?? {}))
+  .handler(async ({ data }) => bloggerOAuthConfig(data.redirectUri));
+
 export const startBloggerAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
-    z.object({ blogId: z.string().uuid(), redirectUri: z.string().url() }).parse(data),
+    z.object({ blogId: z.string().uuid(), redirectUri: z.string().url().optional() }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { data: blog, error } = await context.supabase
@@ -25,15 +32,16 @@ export const startBloggerAuth = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!blog) throw new Error("Blog not found");
 
+    const redirectUri = bloggerRedirectUri(data.redirectUri);
     const state = btoa(JSON.stringify({ blogId: data.blogId, n: crypto.randomUUID() }));
-    return { url: buildAuthUrl(data.redirectUri, state) };
+    return { url: buildAuthUrl(redirectUri, state), redirectUri };
   });
 
 export const completeBloggerAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
     z
-      .object({ code: z.string().min(1), state: z.string().min(1), redirectUri: z.string().url() })
+      .object({ code: z.string().min(1), state: z.string().min(1), redirectUri: z.string().url().optional() })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -54,7 +62,8 @@ export const completeBloggerAuth = createServerFn({ method: "POST" })
     if (blogError) throw new Error(blogError.message);
     if (!blog) throw new Error("Blog not found");
 
-    const tokens = await exchangeCode(data.code, data.redirectUri);
+    const redirectUri = bloggerRedirectUri(data.redirectUri);
+    const tokens = await exchangeCode(data.code, redirectUri);
     const blogs = await listBlogs(tokens.access_token);
     const first = blogs[0];
 
@@ -74,7 +83,7 @@ export const completeBloggerAuth = createServerFn({ method: "POST" })
     );
     if (error) throw new Error(error.message);
 
-    return { blogId, blogs };
+    return { blogId, blogs, redirectUri };
   });
 
 export const selectBloggerBlog = createServerFn({ method: "POST" })
