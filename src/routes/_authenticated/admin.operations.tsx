@@ -1,65 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Activity, Bot, Database, HardDrive, RefreshCw, Radio, ShieldCheck } from "lucide-react";
+import { Activity, Bot, Database, HardDrive, RefreshCw, Radio, RotateCcw, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getOperationsDashboard } from "@/lib/operations.functions";
+import { getOperationsDashboard, retryAutopilotRun } from "@/lib/operations.functions";
 
-export const Route = createFileRoute("/_authenticated/admin/operations")({
-  head: () => ({ meta: [{ title: "Operations — BlogPilot AI Admin" }] }),
-  component: OperationsPage,
-});
-
-function StatusBadge({ value }: { value: string }) {
-  return <Badge variant={value === "operational" ? "default" : "secondary"}>{value === "operational" ? "Operational" : "Attention"}</Badge>;
-}
+export const Route = createFileRoute("/_authenticated/admin/operations")({ head: () => ({ meta: [{ title: "Operations — BlogPilot AI Admin" }] }), component: OperationsPage });
+function StatusBadge({ value }: { value: string }) { return <Badge variant={value === "operational" ? "default" : "secondary"}>{value === "operational" ? "Operational" : "Attention"}</Badge>; }
 
 function OperationsPage() {
-  const getOps = useServerFn(getOperationsDashboard);
-  const query = useQuery({ queryKey: ["admin-operations"], queryFn: () => getOps(), refetchInterval: 60000 });
-  const data = query.data;
-
+  const getOps = useServerFn(getOperationsDashboard); const retryFn = useServerFn(retryAutopilotRun);
+  const query = useQuery({ queryKey: ["admin-operations"], queryFn: () => getOps(), refetchInterval: 60000 }); const data = query.data;
+  const retry = useMutation({ mutationFn: (runId: string) => retryFn({ data: { runId, origin: window.location.origin } }), onSuccess: (outcome) => { toast.success(`Retry finished: ${outcome.status}`); void query.refetch(); }, onError: (e: Error) => toast.error(e.message) });
   if (query.isLoading) return <p className="text-sm text-muted-foreground">Loading operations…</p>;
-  if (query.error) return <div className="surface-panel p-6"><h1 className="text-xl font-semibold">Operations unavailable</h1><p className="mt-2 text-sm text-destructive">{(query.error as Error).message}</p></div>;
-  if (!data) return null;
-
-  const health = [
-    ["Database", data.health.database, Database],
-    ["Image storage", data.health.storage, HardDrive],
-    ["Blogger", data.health.blogger, Radio],
-    ["Autopilot", data.health.autopilot, Bot],
-  ] as const;
-
-  return <div className="space-y-8">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-eyebrow">Admin operations</p><h1 className="mt-1 text-3xl font-bold">System health & activity</h1><p className="mt-2 text-sm text-muted-foreground">See what is healthy, what ran, and where failures happened.</p></div>
-      <Button variant="secondary" onClick={() => query.refetch()} disabled={query.isFetching}><RefreshCw className={query.isFetching ? "animate-spin" : ""} aria-hidden />Refresh</Button>
-    </div>
-
-    {!data.observabilityReady ? <div className="surface-panel border-amber-500/30 p-4 text-sm">Operations migration is not applied to this database yet. Health checks still work; activity and run history will start filling after the migration is applied.</div> : null}
-
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{health.map(([label, value, Icon]) => <div key={label} className="surface-panel p-5"><div className="flex items-center justify-between gap-3"><Icon className="size-5 text-primary" aria-hidden /><StatusBadge value={value} /></div><p className="mt-4 text-sm font-semibold">{label}</p></div>)}</div>
-
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Metric label="Autopilot blogs" value={data.metrics.autopilotBlogs} />
-      <Metric label="Blogger connections" value={data.metrics.bloggerConnections} />
-      <Metric label="Expired connections" value={data.metrics.expiredConnections} />
-      <Metric label="Recent run errors" value={data.metrics.recentAutopilotErrors} />
-    </div>
-
-    <section className="space-y-3"><div className="flex items-center gap-2"><Bot className="size-5" aria-hidden /><h2 className="text-xl font-semibold">Autopilot run history</h2></div>
-      {data.runs.length === 0 ? <div className="surface-panel p-6 text-sm text-muted-foreground">No recorded Autopilot runs yet.</div> : <div className="space-y-2">{data.runs.slice(0,30).map((run: any) => <div key={run.id} className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{run.blogName}</p><p className="mt-1 text-xs text-muted-foreground">{run.detail || "No detail"} · {new Date(run.created_at).toLocaleString()}</p></div><div className="flex items-center gap-2"><Badge variant="outline">{run.trigger_source}</Badge><Badge variant={run.status === "error" ? "destructive" : "secondary"}>{run.status}</Badge></div></div>)}</div>}
-    </section>
-
-    <section className="space-y-3"><div className="flex items-center gap-2"><Activity className="size-5" aria-hidden /><h2 className="text-xl font-semibold">Activity log</h2></div>
-      {data.activities.length === 0 ? <div className="surface-panel p-6 text-sm text-muted-foreground">No activity recorded yet.</div> : <div className="space-y-2">{data.activities.slice(0,40).map((item: any) => <div key={item.id} className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{item.event_type}</p><p className="mt-1 text-xs text-muted-foreground">{item.message || item.entity_type || "System event"} · {new Date(item.created_at).toLocaleString()}</p></div><Badge variant={item.status === "failed" ? "destructive" : "outline"}>{item.status}</Badge></div>)}</div>}
-    </section>
-
-    <div className="surface-panel flex items-start gap-3 p-5"><ShieldCheck className="mt-0.5 size-5 text-primary" aria-hidden /><div><p className="font-semibold">Operational records are admin-only</p><p className="mt-1 text-sm text-muted-foreground">Activity logs are written server-side. Regular users cannot read or modify the global audit trail.</p></div></div>
-  </div>;
+  if (query.error) return <div className="surface-panel p-6"><h1 className="text-xl font-semibold">Operations unavailable</h1><p className="mt-2 text-sm text-destructive">{(query.error as Error).message}</p></div>; if (!data) return null;
+  const health = [["Database", data.health.database, Database], ["Image storage", data.health.storage, HardDrive], ["Blogger", data.health.blogger, Radio], ["Autopilot", data.health.autopilot, Bot]] as const;
+  return <div className="space-y-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-eyebrow">Admin operations</p><h1 className="mt-1 text-3xl font-bold">System health & activity</h1><p className="mt-2 text-sm text-muted-foreground">See what is healthy, what ran, and recover failed automation.</p></div><Button variant="secondary" onClick={() => query.refetch()} disabled={query.isFetching}><RefreshCw className={query.isFetching ? "animate-spin" : ""} aria-hidden />Refresh</Button></div>
+  {!data.observabilityReady ? <div className="surface-panel border-amber-500/30 p-4 text-sm">Operations migration is not applied to this database yet. Health checks still work; activity and run history will start filling after the migration is applied.</div> : null}
+  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{health.map(([label,value,Icon]) => <div key={label} className="surface-panel p-5"><div className="flex items-center justify-between gap-3"><Icon className="size-5 text-primary" aria-hidden /><StatusBadge value={value} /></div><p className="mt-4 text-sm font-semibold">{label}</p></div>)}</div>
+  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Autopilot blogs" value={data.metrics.autopilotBlogs}/><Metric label="Blogger connections" value={data.metrics.bloggerConnections}/><Metric label="Expired connections" value={data.metrics.expiredConnections}/><Metric label="Recent run errors" value={data.metrics.recentAutopilotErrors}/></div>
+  <section className="space-y-3"><div className="flex items-center gap-2"><Bot className="size-5" aria-hidden/><h2 className="text-xl font-semibold">Autopilot run history</h2></div>{data.runs.length===0?<div className="surface-panel p-6 text-sm text-muted-foreground">No recorded Autopilot runs yet.</div>:<div className="space-y-2">{data.runs.slice(0,30).map((run:any)=><div key={run.id} className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0"><p className="font-medium">{run.blogName}</p><p className="mt-1 text-xs text-muted-foreground">{run.detail||"No detail"} · {new Date(run.created_at).toLocaleString()}</p></div><div className="flex items-center gap-2"><Badge variant="outline">{run.trigger_source}</Badge><Badge variant={run.status==="error"?"destructive":"secondary"}>{run.status}</Badge>{run.status==="error"?<Button size="sm" variant="outline" disabled={retry.isPending} onClick={()=>retry.mutate(run.id)}><RotateCcw className={retry.isPending?"size-4 animate-spin":"size-4"} aria-hidden/>Retry</Button>:null}</div></div>)}</div>}</section>
+  <section className="space-y-3"><div className="flex items-center gap-2"><Activity className="size-5" aria-hidden/><h2 className="text-xl font-semibold">Activity log</h2></div>{data.activities.length===0?<div className="surface-panel p-6 text-sm text-muted-foreground">No activity recorded yet.</div>:<div className="space-y-2">{data.activities.slice(0,40).map((item:any)=><div key={item.id} className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{item.event_type}</p><p className="mt-1 text-xs text-muted-foreground">{item.message||item.entity_type||"System event"} · {new Date(item.created_at).toLocaleString()}</p></div><Badge variant={item.status==="failed"?"destructive":"outline"}>{item.status}</Badge></div>)}</div>}</section>
+  <div className="surface-panel flex items-start gap-3 p-5"><ShieldCheck className="mt-0.5 size-5 text-primary" aria-hidden/><div><p className="font-semibold">Operational records are admin-only</p><p className="mt-1 text-sm text-muted-foreground">Retries run server-side and are recorded with the admin actor for accountability.</p></div></div></div>;
 }
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="surface-panel p-5"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></div>;
-}
+function Metric({label,value}:{label:string;value:number}){return <div className="surface-panel p-5"><p className="text-2xl font-bold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></div>;}
