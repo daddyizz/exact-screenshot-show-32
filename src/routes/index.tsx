@@ -61,13 +61,55 @@ const features = [
     icon: PenLine,
     title: "AI drafting",
     body: "One click turns an approved outline into a full, on-brand article draft.",
-    soon: true,
   },
   {
     icon: CalendarClock,
     title: "Auto-publish to Blogger",
     body: "Approved drafts go live on schedule, with images attached, hands-free.",
-    soon: true,
+  },
+];
+
+const plans = [
+  {
+    name: "Free",
+    price: "RM0",
+    note: "forever",
+    perks: ["1 blog", "Topic planning + outlines", "5 AI drafts / month", "Manual publishing"],
+    cta: "Start free",
+    highlight: false,
+  },
+  {
+    name: "Pro",
+    price: "RM49",
+    note: "per month",
+    perks: [
+      "5 blogs",
+      "Unlimited AI drafts",
+      "Autopilot daily publishing",
+      "AI cover images",
+      "Priority support",
+    ],
+    cta: "Start free, upgrade later",
+    highlight: true,
+  },
+];
+
+const faqs = [
+  {
+    q: "Do I need my own AI key?",
+    a: "No. Drafting, topic planning and cover images are built in — just sign in with Google.",
+  },
+  {
+    q: "Which blog platforms are supported?",
+    a: "Blogger is supported today: connect your Google account, pick a blog, and posts publish straight to it.",
+  },
+  {
+    q: "What does autopilot actually do?",
+    a: "It picks the next topic, writes the full article with SEO title, meta description and keywords, then publishes it on your chosen cadence.",
+  },
+  {
+    q: "Can I edit before anything goes live?",
+    a: "Yes. Turn off automatic publishing and every article waits in your Articles library until you approve it.",
   },
 ];
 
