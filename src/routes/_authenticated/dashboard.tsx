@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { generateTopics } from "@/lib/ai.functions";
-import { runAutopilotNow, updateAutopilot } from "@/lib/autopilot.functions";
+import { runAutopilotNow, runDueAutopilot, updateAutopilot } from "@/lib/autopilot.functions";
 import { Switch } from "@/components/ui/switch";
 import { AdSlot } from "@/components/AdSlot";
 import { COUNTRIES, LANGUAGES, NICHES } from "@/lib/blogpilot";
@@ -146,6 +146,24 @@ function Dashboard() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const runDueFn = useServerFn(runDueAutopilot);
+  const checkedDue = useRef(false);
+
+  useEffect(() => {
+    if (checkedDue.current) return;
+    if (!blogs.data?.some((b) => b.autopilot)) return;
+    checkedDue.current = true;
+    void runDueFn({ data: { origin: window.location.origin } })
+      .then(async (result) => {
+        if (result.ran > 0) {
+          toast.success(`Autopilot ran for ${result.ran} blog${result.ran > 1 ? "s" : ""}`);
+          await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+          await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+        }
+      })
+      .catch(() => undefined);
+  }, [blogs.data, runDueFn, queryClient]);
 
   const totalPosts = posts.data?.length ?? 0;
   const published = posts.data?.filter((p) => p.status === "published").length ?? 0;
