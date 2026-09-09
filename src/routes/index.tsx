@@ -192,7 +192,6 @@ function Landing() {
                 <f.icon className="size-5 text-primary" aria-hidden />
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <h3 className="font-display text-base font-semibold">{f.title}</h3>
-                  {f.soon && <ComingSoonBadge />}
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{f.body}</p>
               </article>
