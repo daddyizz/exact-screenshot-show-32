@@ -8,6 +8,16 @@ function missingUsageRpc(error: any) {
   return message.includes("consume_ai_") || message.includes("schema cache") || message.includes("could not find the function");
 }
 
+function missingEntitlementSchema(error: any) {
+  const message = String(error?.message ?? error ?? "").toLowerCase();
+  return (
+    message.includes("user_subscriptions") ||
+    message.includes("schema cache") ||
+    message.includes("does not exist") ||
+    message.includes("could not find the table")
+  );
+}
+
 async function consumeUsage(kind: "draft" | "image", userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
@@ -17,9 +27,35 @@ async function consumeUsage(kind: "draft" | "image", userId: string) {
   if (!user) throw new Error("User not found");
 
   const app = user.app_metadata ?? {};
-  const plan = app.blogpilot_plan === "pro" ? "pro" : "free";
-  const status = app.blogpilot_subscription_status ?? "active";
-  const entitled = plan === "pro" && ["active", "trialing"].includes(status);
+
+  let dbPlan: string | null = null;
+  let dbStatus: string | null = null;
+  const subscription = await admin
+    .from("user_subscriptions")
+    .select("plan,status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (subscription.error && !missingEntitlementSchema(subscription.error)) {
+    throw new Error(subscription.error.message);
+  }
+  if (!subscription.error && subscription.data) {
+    dbPlan = subscription.data.plan;
+    dbStatus = subscription.data.status;
+  }
+
+  const roleResult = await admin.from("user_roles").select("role").eq("user_id", userId);
+  if (roleResult.error) throw new Error(roleResult.error.message);
+  const isAdmin = (roleResult.data ?? []).some((row: any) => row.role === "admin");
+
+  const metadataPlan = app.blogpilot_plan === "pro" || app.blogpilot_plan === "free"
+    ? app.blogpilot_plan
+    : null;
+  const metadataStatus = ["active", "trialing", "past_due", "canceled", "suspended"].includes(app.blogpilot_subscription_status)
+    ? app.blogpilot_subscription_status
+    : null;
+  const rawPlan = dbPlan ?? metadataPlan ?? (isAdmin ? "pro" : "free");
+  const status = dbStatus ?? metadataStatus ?? "active";
+  const entitled = rawPlan === "pro" && ["active", "trialing"].includes(status);
 
   if (kind === "image" && !entitled) {
     throw new Error("AI cover images are available on the Pro plan.");
