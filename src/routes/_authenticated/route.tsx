@@ -10,7 +10,10 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { amIAdmin } from "@/lib/admin.functions";
 import { useEffect, useRef } from "react";
 
-export const Route = createFileRoute("/_authenticated")({ component: AuthenticatedLayout });
+export const Route = createFileRoute("/_authenticated")({
+  head: () => ({ meta: [{ name: "robots", content: "noindex, nofollow, noarchive" }] }),
+  component: AuthenticatedLayout,
+});
 const nav = [{ to: "/dashboard", label: "Overview", icon: LayoutDashboard }, { to: "/queue", label: "Content queue", icon: Notebook }, { to: "/articles", label: "Articles", icon: FileText }, { to: "/settings", label: "Settings", icon: Settings }] as const;
 
 function AuthenticatedLayout() {
