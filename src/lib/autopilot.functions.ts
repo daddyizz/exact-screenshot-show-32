@@ -57,3 +57,30 @@ export const runAutopilotNow = createServerFn({ method: "POST" })
     if (outcome.status === "error") throw new Error(outcome.detail);
     return outcome;
   });
+
+/** Runs any of the signed-in user's autopilot blogs that are due, so the schedule keeps moving. */
+export const runDueAutopilot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ origin: z.string().url().optional() }).parse(data ?? {}))
+  .handler(async ({ data, context }) => {
+    const { data: blogs, error } = await context.supabase
+      .from("blogs")
+      .select("*")
+      .eq("autopilot", true);
+    if (error) throw new Error(error.message);
+
+    const { isBlogDue, runAutopilotForBlog } = await import("./autopilot.server");
+    const due = (blogs ?? []).filter(isBlogDue).slice(0, 2);
+    if (due.length === 0) return { ran: 0, results: [] };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const results = [];
+    for (const blog of due) {
+      results.push(await runAutopilotForBlog(supabaseAdmin, blog, data.origin));
+      await supabaseAdmin
+        .from("blogs")
+        .update({ autopilot_last_run_at: new Date().toISOString() })
+        .eq("id", blog.id);
+    }
+    return { ran: results.length, results };
+  });
