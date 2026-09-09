@@ -30,6 +30,7 @@ import { generateTopics } from "@/lib/ai.functions";
 import { runAutopilotNow, runDueAutopilot, updateAutopilot } from "@/lib/autopilot.functions";
 import { Switch } from "@/components/ui/switch";
 import { AdSlot } from "@/components/AdSlot";
+import { PlanUsageCard } from "@/components/PlanUsageCard";
 import { COUNTRIES, LANGUAGES, NICHES } from "@/lib/blogpilot";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -103,6 +104,7 @@ function Dashboard() {
       setOpen(false);
       setForm({ ...form, name: "", blog_url: "" });
       await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-plan-usage"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -115,6 +117,7 @@ function Dashboard() {
       autopilotFn({ data: vars }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-plan-usage"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -133,6 +136,7 @@ function Dashboard() {
       await queryClient.invalidateQueries({ queryKey: ["blogs"] });
       await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
       await queryClient.invalidateQueries({ queryKey: ["posts"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-plan-usage"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -160,6 +164,7 @@ function Dashboard() {
           toast.success(`Autopilot ran for ${result.ran} blog${result.ran > 1 ? "s" : ""}`);
           await queryClient.invalidateQueries({ queryKey: ["blogs"] });
           await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+          await queryClient.invalidateQueries({ queryKey: ["my-plan-usage"] });
         }
       })
       .catch(() => undefined);
@@ -302,6 +307,8 @@ function Dashboard() {
         <Stat label="Planned posts" value={String(totalPosts)} />
         <Stat label="Published" value={String(published)} />
       </div>
+
+      <PlanUsageCard />
 
       {blogs.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading blogs…</p>
