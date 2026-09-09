@@ -2,28 +2,31 @@
 
 ## Selesai
 - Auth (Google sign-in) + redirect balik ke halaman asal
-- Pangkalan data: profiles, blogs, posts, blogger_connections, user_roles + RLS
+- Pangkalan data teras: profiles, blogs, posts, blogger_connections, user_roles + RLS
 - Dashboard, content queue & pustaka Articles (edit + terbit semula)
 - AI: jana topik, jana artikel (SEO title/meta/keywords), AI images
 - Blogger: OAuth flow, pilih blog, publish artikel
 - Blogger OAuth di-harden supaya boleh guna redirect URI tetap dari server (`BLOGGER_REDIRECT_URI`)
+- Blogger OAuth production telah dikonfigurasi pada domain semasa
 - Autopilot: enjin, suis on/off, auto-publish, Run autopilot now
 - Autopilot berjalan sendiri bila buka Overview (blog yang dah tiba masanya)
 - Endpoint jadual harian /api/public/cron/autopilot (untuk scheduler luar)
 - Slot iklan (landing, workspace, dashboard)
 - Landing: pricing + FAQ
-- Billing foundation: `user_subscriptions`, `monthly_usage`, Free/Pro status + RLS
-- Free plan enforcement: maksimum 1 blog, 5 AI drafts/bulan, tiada Autopilot
-- Pro plan enforcement: maksimum 5 blog, Autopilot + AI cover images
-- Akaun owner/admin utama ditetapkan sebagai Pro aktif secara manual
-- Admin console diperluas: overview, users, search/filter, invite user, edit user, plan/status, roles, billing & usage
-- Schema mismatch `autopilot_auto_publish` dibetulkan di production dan migration
+- Billing foundation migration: `user_subscriptions`, `monthly_usage`, Free/Pro status + RLS
+- Legacy-compatible plan storage melalui Supabase `app_metadata` bila billing table/RPC belum tersedia pada database semasa
+- Free plan: 5 AI drafts/bulan; AI cover image dan Autopilot dikunci kepada Pro
+- Pro plan: unlimited AI drafts, AI cover images dan Autopilot
+- Manual Free/Pro + active/trialing/past_due/canceled/suspended management dari Admin
+- Admin console: overview, users, search/filter, invite user, edit user, plan/status, Admin/Moderator roles, plans & usage
+- Admin delete-user dengan perlindungan supaya admin tidak boleh delete akaun sendiri
+- Admin console mempunyai fallback untuk database lama supaya page tidak crash jika billing RPC/table belum tersedia
+- React hook-order crash pada `/admin` telah dibetulkan
+- Schema mismatch `autopilot_auto_publish` disediakan dalam migration dan code kini toleran pada schema lama
 
-## Tinggal konfigurasi luar
-- Stripe checkout sebenar: perlukan `STRIPE_SECRET_KEY`, Stripe Pro Price ID (RM49/bulan) dan webhook secret
-- Blogger OAuth production: masukkan `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `BLOGGER_REDIRECT_URI` pada hosting dan daftarkan redirect URI yang sama di Google Cloud OAuth client
-
-## Cadangan selepas konfigurasi
-- Stripe Checkout + Customer Portal + webhook lifecycle (active/past_due/canceled)
-- Paparkan plan/usage pada dashboard pengguna
-- Audit end-to-end live: Free limit, Pro upgrade, Blogger connect, Autopilot publish
+## Tinggal
+- Stripe checkout sebenar: `STRIPE_SECRET_KEY`, Stripe Pro Price ID (RM49/bulan), webhook secret, Checkout + Customer Portal + webhook lifecycle
+- Apply billing migration penuh pada database auth asal apabila akses migration/database tersedia; sehingga itu compatibility mode menggunakan `app_metadata`
+- Enforce had bilangan blog (Free 1 / Pro 5) pada database auth asal melalui trigger migration; AI dan Autopilot sudah mempunyai server-side plan enforcement
+- Paparkan plan/usage ringkas pada dashboard pengguna
+- Audit end-to-end live selepas sync: invite/edit/delete user, manual Free/Pro, AI draft limit, AI image Pro, Autopilot Pro, Blogger publish
