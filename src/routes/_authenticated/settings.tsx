@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -219,128 +220,50 @@ function SettingsPage() {
             <div className="space-y-2">
               <Label>Niche</Label>
               <Select value={selected.niche} onValueChange={(v) => saveBlog.mutate({ niche: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {NICHES.map((n) => (
-                    <SelectItem key={n} value={n}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{NICHES.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Tone of voice</Label>
               <Select value={selected.tone} onValueChange={(v) => saveBlog.mutate({ tone: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TONES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{TONES.map((t) => <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Target country</Label>
-              <Select
-                value={selected.target_country}
-                onValueChange={(v) => saveBlog.mutate({ target_country: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRIES.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={selected.target_country} onValueChange={(v) => saveBlog.mutate({ target_country: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{COUNTRIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Language</Label>
-              <Select
-                value={selected.language}
-                onValueChange={(v) => saveBlog.mutate({ language: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LANGUAGES.map((l) => (
-                    <SelectItem key={l.code} value={l.code}>
-                      {l.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={selected.language} onValueChange={(v) => saveBlog.mutate({ language: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{LANGUAGES.map((l) => <SelectItem key={l.code} value={l.code}>{l.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="ppw">Posts per week</Label>
-              <Input
-                id="ppw"
-                type="number"
-                min={1}
-                max={21}
-                defaultValue={selected.posts_per_week}
-                onBlur={(e) =>
-                  saveBlog.mutate({ posts_per_week: Math.max(1, Number(e.target.value) || 1) })
-                }
-              />
+              <Input id="ppw" type="number" min={1} max={21} defaultValue={selected.posts_per_week} onBlur={(e) => saveBlog.mutate({ posts_per_week: Math.max(1, Number(e.target.value) || 1) })} />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="len">Target article length (words)</Label>
-              <Input
-                id="len"
-                type="number"
-                min={300}
-                max={5000}
-                step={100}
-                defaultValue={selected.article_length}
-                onBlur={(e) =>
-                  saveBlog.mutate({ article_length: Math.max(300, Number(e.target.value) || 300) })
-                }
-              />
+              <Input id="len" type="number" min={300} max={5000} step={100} defaultValue={selected.article_length} onBlur={(e) => saveBlog.mutate({ article_length: Math.max(300, Number(e.target.value) || 300) })} />
             </div>
-
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="kw">Keyword focus</Label>
-              <Textarea
-                id="kw"
-                rows={3}
-                defaultValue={selected.keyword_focus ?? ""}
-                placeholder="Comma-separated seed keywords, e.g. budget travel malaysia, cheap flights kl"
-                onBlur={(e) => saveBlog.mutate({ keyword_focus: e.target.value.trim() || null })}
-              />
+              <Textarea id="kw" rows={3} defaultValue={selected.keyword_focus ?? ""} placeholder="Comma-separated seed keywords, e.g. budget travel malaysia, cheap flights kl" onBlur={(e) => saveBlog.mutate({ keyword_focus: e.target.value.trim() || null })} />
             </div>
-
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-4 sm:col-span-2">
               <div>
                 <p className="text-sm font-medium">Autopilot publishing</p>
-                <p className="text-sm text-muted-foreground">
-                  Automatically draft and publish on your cadence. Fine-tune and run it from
-                  Overview.
-                </p>
+                <p className="text-sm text-muted-foreground">Automatically draft and publish on your cadence. Fine-tune and run it from Overview.</p>
               </div>
-              <Switch
-                checked={Boolean(selected.autopilot)}
-                onCheckedChange={(checked) => saveBlog.mutate({ autopilot: checked })}
-                aria-label="Autopilot publishing"
-              />
+              <Switch checked={Boolean(selected.autopilot)} onCheckedChange={(checked) => saveBlog.mutate({ autopilot: checked })} aria-label="Autopilot publishing" />
             </div>
-
           </div>
         )}
       </section>
@@ -357,18 +280,33 @@ function SettingsPage() {
         ) : bloggerStatus.isLoading ? (
           <p className="text-sm text-muted-foreground">Checking connection…</p>
         ) : bloggerStatus.data?.connected ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm">
-              Connected to{" "}
-              <span className="font-medium">
-                {bloggerStatus.data.bloggerBlogName ?? "your Blogger account"}
-              </span>
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => disconnect.mutate()}
-              disabled={disconnect.isPending}
-            >
+          <div className="space-y-3">
+            {bloggerStatus.data.needsReconnect ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 size-5 text-destructive" aria-hidden />
+                  <div className="space-y-2">
+                    <div>
+                      <p className="font-medium">Blogger needs to be reconnected</p>
+                      <p className="text-sm text-muted-foreground">
+                        Google authorization expired or was revoked. Reconnect this blog before the next publish or Autopilot run.
+                      </p>
+                    </div>
+                    <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
+                      {connect.isPending ? "Opening Google…" : "Reconnect Blogger"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <CheckCircle2 className="size-5 text-primary" aria-hidden />
+                <p className="text-sm">
+                  Connected to <span className="font-medium">{bloggerStatus.data.bloggerBlogName ?? "your Blogger account"}</span>
+                </p>
+              </div>
+            )}
+            <Button variant="outline" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>
               Disconnect
             </Button>
           </div>
@@ -378,8 +316,7 @@ function SettingsPage() {
           </Button>
         )}
         <p className="pt-2 text-sm text-muted-foreground">
-          AI featured images are available per post in the content queue — click “AI image” on any
-          article.
+          AI featured images are available per post in the content queue — click “AI image” on any article.
         </p>
       </section>
     </div>
