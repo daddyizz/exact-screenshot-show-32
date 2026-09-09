@@ -223,14 +223,65 @@ function Landing() {
           </div>
         </section>
 
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
+          <p className="text-eyebrow">Pricing</p>
+          <h2 className="font-display mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+            Simple plans, no card to start
+          </h2>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            {plans.map((p) => (
+              <div
+                key={p.name}
+                className={`surface-panel p-6 ${p.highlight ? "border-primary/50" : ""}`}
+              >
+                <div className="flex items-center gap-2">
+                  <h3 className="font-display text-lg font-semibold">{p.name}</h3>
+                  {p.highlight && <Badge>Most popular</Badge>}
+                </div>
+                <p className="font-display mt-3 text-3xl font-bold">
+                  {p.price}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">{p.note}</span>
+                </p>
+                <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
+                  {p.perks.map((perk) => (
+                    <li key={perk}>· {perk}</li>
+                  ))}
+                </ul>
+                <Button className="mt-6" variant={p.highlight ? "default" : "secondary"} asChild>
+                  <Link to="/auth" search={{ next: undefined }}>
+                    {p.cta}
+                  </Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-t border-border bg-card/40">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:py-20">
+            <p className="text-eyebrow">FAQ</p>
+            <h2 className="font-display mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+              Questions people ask first
+            </h2>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {faqs.map((item) => (
+                <div key={item.q} className="surface-panel p-5">
+                  <h3 className="font-display text-base font-semibold">{item.q}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{item.a}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="mx-auto max-w-6xl px-4 py-20">
           <div className="surface-panel flex flex-col items-start gap-5 p-8 sm:p-12">
             <h2 className="font-display max-w-2xl text-2xl font-bold tracking-tight sm:text-4xl">
               Your next 30 blog posts are one sign-in away.
             </h2>
             <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
-              Set up your first blog in under a minute. Planning, outlines and SEO metadata are free
-              today — AI drafting and Blogger auto-publishing land next.
+              Set up your first blog in under a minute — planning, AI drafting and Blogger
+              auto-publishing are all live today.
             </p>
             <Button size="lg" asChild>
               <Link to="/auth" search={{ next: undefined }}>
