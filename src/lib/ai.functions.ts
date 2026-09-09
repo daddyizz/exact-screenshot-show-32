@@ -3,11 +3,52 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { blogContext, chatComplete, extractJson, generateImage, slugifyServer } from "./ai.server";
 
+function missingUsageRpc(error: any) {
+  const message = String(error?.message ?? error ?? "").toLowerCase();
+  return message.includes("consume_ai_") || message.includes("schema cache") || message.includes("could not find the function");
+}
+
 async function consumeUsage(kind: "draft" | "image", userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = supabaseAdmin as any;
+  const userResult = await admin.auth.admin.getUserById(userId);
+  if (userResult.error) throw new Error(userResult.error.message);
+  const user = userResult.data?.user;
+  if (!user) throw new Error("User not found");
+
+  const app = user.app_metadata ?? {};
+  const plan = app.blogpilot_plan === "pro" ? "pro" : "free";
+  const status = app.blogpilot_subscription_status ?? "active";
+  const entitled = plan === "pro" && ["active", "trialing"].includes(status);
+
+  if (kind === "image" && !entitled) {
+    throw new Error("AI cover images are available on the Pro plan.");
+  }
+
   const fn = kind === "draft" ? "consume_ai_draft_usage" : "consume_ai_image_usage";
-  const { error } = await (supabaseAdmin as any).rpc(fn, { p_user_id: userId });
-  if (error) throw new Error(error.message);
+  const rpc = await admin.rpc(fn, { p_user_id: userId });
+  if (!rpc.error) return;
+  if (!missingUsageRpc(rpc.error)) throw new Error(rpc.error.message);
+
+  // Legacy database fallback: keep monthly counters in auth app_metadata.
+  const month = new Date().toISOString().slice(0, 7);
+  const usageMonth = app.blogpilot_usage_month === month ? month : null;
+  const drafts = usageMonth ? Number(app.blogpilot_ai_drafts ?? 0) : 0;
+  const images = usageMonth ? Number(app.blogpilot_ai_images ?? 0) : 0;
+
+  if (kind === "draft" && !entitled && drafts >= 5) {
+    throw new Error("Free plan limit reached: 5 AI drafts per month. Upgrade to Pro for unlimited drafts.");
+  }
+
+  const updated = await admin.auth.admin.updateUserById(userId, {
+    app_metadata: {
+      ...app,
+      blogpilot_usage_month: month,
+      blogpilot_ai_drafts: kind === "draft" ? drafts + 1 : drafts,
+      blogpilot_ai_images: kind === "image" ? images + 1 : images,
+    },
+  });
+  if (updated.error) throw new Error(updated.error.message);
 }
 
 export const generateTopics = createServerFn({ method: "POST" })
@@ -36,8 +77,7 @@ export const generateTopics = createServerFn({ method: "POST" })
     const raw = await chatComplete([
       {
         role: "system",
-        content:
-          "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences.",
+        content: "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences.",
       },
       {
         role: "user",
@@ -92,14 +132,12 @@ export const generateArticle = createServerFn({ method: "POST" })
     if (!post || !post.blogs) throw new Error("Post not found");
 
     await consumeUsage("draft", userId);
-
     const blog = post.blogs;
 
     const raw = await chatComplete([
       {
         role: "system",
-        content:
-          "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences.",
+        content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences.",
       },
       {
         role: "user",
@@ -150,9 +188,7 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
       `Blog: ${post.blogs.name}. Niche: ${post.blogs.niche}.`,
       post.keywords ? `Related keywords: ${post.keywords}.` : null,
       "Style: modern editorial illustration, no text, no watermarks.",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    ].filter(Boolean).join(" ");
 
     const dataUrl = await generateImage(prompt);
     const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
