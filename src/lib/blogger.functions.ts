@@ -4,6 +4,41 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { bloggerOAuthConfig, bloggerRedirectUri, buildAuthUrl, createBloggerPost, exchangeCode, listBlogs, markdownToHtml, refreshAccessToken, tokenExpiry, updateBloggerPost } from "./blogger.server";
 import { createNotification } from "./notifications.server";
 
+async function notifyReconnect(admin: any, userId: string, blogId: string, message: string) {
+  await createNotification(admin, {
+    userId,
+    type: "blogger.expired",
+    title: "Reconnect Blogger",
+    message,
+    severity: "warning",
+    actionUrl: "/settings",
+    actionLabel: "Reconnect",
+    dedupeKey: `blogger-expired:${blogId}`,
+  });
+}
+
+async function refreshConnection(admin: any, connection: any, userId: string, blogId: string) {
+  if (!connection.refresh_token) {
+    await notifyReconnect(admin, userId, blogId, "Your Blogger connection expired and cannot refresh automatically.");
+    throw new Error("Your Blogger connection expired. Reconnect the blog.");
+  }
+
+  try {
+    const refreshed = await refreshAccessToken(connection.refresh_token);
+    const expiresAt = tokenExpiry(refreshed.expires_in);
+    const { error } = await admin
+      .from("blogger_connections")
+      .update({ access_token: refreshed.access_token, token_expires_at: expiresAt })
+      .eq("id", connection.id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { accessToken: refreshed.access_token, expiresAt };
+  } catch (error) {
+    await notifyReconnect(admin, userId, blogId, "Google rejected the saved Blogger authorization. Reconnect Blogger to continue publishing.");
+    throw new Error("Blogger authorization is no longer valid. Reconnect the blog.");
+  }
+}
+
 export const getBloggerOAuthConfig = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ redirectUri: z.string().url().optional() }).parse(data ?? {})).handler(async ({ data }) => bloggerOAuthConfig(data.redirectUri));
 
 export const startBloggerAuth = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ blogId: z.string().uuid(), redirectUri: z.string().url().optional() }).parse(data)).handler(async ({ data, context }) => {
@@ -20,7 +55,8 @@ export const completeBloggerAuth = createServerFn({ method: "POST" }).middleware
   if (blogError) throw new Error(blogError.message); if (!blog) throw new Error("Blog not found");
   const redirectUri = bloggerRedirectUri(data.redirectUri); const tokens = await exchangeCode(data.code, redirectUri); const blogs = await listBlogs(tokens.access_token); const first = blogs[0];
   const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin;
-  const { error } = await admin.from("blogger_connections").upsert({ user_id: userId, blog_id: blogId, access_token: tokens.access_token, refresh_token: tokens.refresh_token ?? null, token_expires_at: tokenExpiry(tokens.expires_in), blogger_blog_id: first?.id ?? null, blogger_blog_name: first?.name ?? null, blogger_blog_url: first?.url ?? null }, { onConflict: "blog_id" });
+  const { data: existing } = await admin.from("blogger_connections").select("refresh_token").eq("blog_id", blogId).eq("user_id", userId).maybeSingle();
+  const { error } = await admin.from("blogger_connections").upsert({ user_id: userId, blog_id: blogId, access_token: tokens.access_token, refresh_token: tokens.refresh_token ?? existing?.refresh_token ?? null, token_expires_at: tokenExpiry(tokens.expires_in), blogger_blog_id: first?.id ?? null, blogger_blog_name: first?.name ?? null, blogger_blog_url: first?.url ?? null }, { onConflict: "blog_id" });
   if (error) throw new Error(error.message); return { blogId, blogs, redirectUri };
 });
 
@@ -40,7 +76,7 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
   const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: connection, error: connError } = await admin.from("blogger_connections").select("*").eq("blog_id", post.blog_id).eq("user_id", userId).maybeSingle();
   if (connError) throw new Error(connError.message); if (!connection?.blogger_blog_id) throw new Error("Connect this blog to Blogger first.");
   let accessToken = connection.access_token ?? ""; const expired = !connection.token_expires_at || new Date(connection.token_expires_at) <= new Date();
-  if (expired) { if (!connection.refresh_token) { await createNotification(admin, { userId, type: "blogger.expired", title: "Reconnect Blogger", message: "Your Blogger connection expired and cannot refresh automatically.", severity: "warning", actionUrl: "/settings", actionLabel: "Reconnect", dedupeKey: `blogger-expired:${post.blog_id}` }); throw new Error("Your Blogger connection expired. Reconnect the blog."); } const refreshed = await refreshAccessToken(connection.refresh_token); accessToken = refreshed.access_token; await admin.from("blogger_connections").update({ access_token: accessToken, token_expires_at: tokenExpiry(refreshed.expires_in) }).eq("id", connection.id); }
+  if (expired) accessToken = (await refreshConnection(admin, connection, userId, post.blog_id)).accessToken;
   const imageHtml = post.image_url && data.origin ? `<p><img src="${data.origin}${post.image_url}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n` : "";
   const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(post.body), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
   const published = post.blogger_post_id ? await updateBloggerPost(accessToken, connection.blogger_blog_id, post.blogger_post_id, input) : await createBloggerPost(accessToken, connection.blogger_blog_id, input);
@@ -50,8 +86,29 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
 });
 
 export const getBloggerStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ blogId: z.string().uuid() }).parse(data)).handler(async ({ data, context }) => {
-  const { data: row, error } = await context.supabase.from("blogger_connections").select("blogger_blog_id, blogger_blog_name, blogger_blog_url, token_expires_at, refresh_token").eq("blog_id", data.blogId).maybeSingle();
+  const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin;
+  const { data: row, error } = await admin.from("blogger_connections").select("*").eq("blog_id", data.blogId).eq("user_id", context.userId).maybeSingle();
   if (error) throw new Error(error.message);
-  const expiresAt = row?.token_expires_at ?? null; const expired = Boolean(row && (!expiresAt || new Date(expiresAt) <= new Date()));
-  return { connected: Boolean(row), healthy: Boolean(row) && (!expired || Boolean(row?.refresh_token)), needsReconnect: Boolean(row) && expired && !row?.refresh_token, tokenExpired: expired, tokenExpiresAt: expiresAt, bloggerBlogId: row?.blogger_blog_id ?? null, bloggerBlogName: row?.blogger_blog_name ?? null, bloggerBlogUrl: row?.blogger_blog_url ?? null };
+  if (!row) return { connected: false, healthy: false, needsReconnect: false, tokenExpired: false, tokenExpiresAt: null, bloggerBlogId: null, bloggerBlogName: null, bloggerBlogUrl: null };
+
+  let expiresAt = row.token_expires_at ?? null;
+  let expired = !expiresAt || new Date(expiresAt) <= new Date();
+  let needsReconnect = false;
+
+  if (expired) {
+    if (!row.refresh_token) {
+      needsReconnect = true;
+      await notifyReconnect(admin, context.userId, data.blogId, "Your Blogger connection expired and cannot refresh automatically.");
+    } else {
+      try {
+        const refreshed = await refreshConnection(admin, row, context.userId, data.blogId);
+        expiresAt = refreshed.expiresAt;
+        expired = false;
+      } catch {
+        needsReconnect = true;
+      }
+    }
+  }
+
+  return { connected: true, healthy: !needsReconnect, needsReconnect, tokenExpired: expired, tokenExpiresAt: expiresAt, bloggerBlogId: row.blogger_blog_id ?? null, bloggerBlogName: row.blogger_blog_name ?? null, bloggerBlogUrl: row.blogger_blog_url ?? null };
 });
