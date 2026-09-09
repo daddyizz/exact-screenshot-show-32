@@ -45,6 +45,7 @@ do $$
 begin
   if to_regclass('public.user_roles') is not null then
     execute 'alter table public.user_roles enable row level security';
+    execute 'drop policy if exists "read own roles" on public.user_roles';
     if not exists (
       select 1 from pg_policies
       where schemaname='public' and tablename='user_roles'
