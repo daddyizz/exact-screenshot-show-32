@@ -11,6 +11,7 @@ import {
   markdownToHtml,
   refreshAccessToken,
   tokenExpiry,
+  updateBloggerPost,
 } from "./blogger.server";
 
 export const getBloggerOAuthConfig = createServerFn({ method: "POST" })
@@ -174,7 +175,7 @@ export const publishToBlogger = createServerFn({ method: "POST" })
         ? `<p><img src="${data.origin}${post.image_url}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n`
         : "";
 
-    const published = await createBloggerPost(accessToken, connection.blogger_blog_id, {
+    const input = {
       title: post.seo_title || post.title,
       content: imageHtml + markdownToHtml(post.body),
       labels: (post.keywords ?? "")
@@ -182,7 +183,11 @@ export const publishToBlogger = createServerFn({ method: "POST" })
         .map((k) => k.trim())
         .filter(Boolean)
         .slice(0, 10),
-    });
+    };
+
+    const published = post.blogger_post_id
+      ? await updateBloggerPost(accessToken, connection.blogger_blog_id, post.blogger_post_id, input)
+      : await createBloggerPost(accessToken, connection.blogger_blog_id, input);
 
     const { error } = await supabase
       .from("posts")
@@ -195,7 +200,7 @@ export const publishToBlogger = createServerFn({ method: "POST" })
       .eq("id", data.postId);
     if (error) throw new Error(error.message);
 
-    return { url: published.url };
+    return { url: published.url, republished: Boolean(post.blogger_post_id) };
   });
 
 export const getBloggerStatus = createServerFn({ method: "POST" })
