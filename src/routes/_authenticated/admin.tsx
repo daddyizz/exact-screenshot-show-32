@@ -10,6 +10,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ import { AdSlot } from "@/components/AdSlot";
 import {
   adminOverview,
   amIAdmin,
+  deleteUserAccount,
   inviteUser,
   setUserRole,
   setUserSubscription,
@@ -71,6 +73,7 @@ function AdminPage() {
   const setSubscriptionFn = useServerFn(setUserSubscription);
   const updateUserFn = useServerFn(updateAdminUser);
   const inviteUserFn = useServerFn(inviteUser);
+  const deleteUserFn = useServerFn(deleteUserAccount);
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -116,7 +119,7 @@ function AdminPage() {
       status: "active" | "trialing" | "past_due" | "canceled" | "suspended";
     }) => setSubscriptionFn({ data: vars }),
     onSuccess: async () => {
-      toast.success("Subscription updated");
+      toast.success("Plan and status updated");
       setEditUser(null);
       await refresh();
     },
@@ -142,6 +145,16 @@ function AdminPage() {
       toast.success("Invitation sent");
       setInviteOpen(false);
       setInvite({ email: "", displayName: "", plan: "free", role: "user" });
+      await refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (userId: string) => deleteUserFn({ data: { userId } }),
+    onSuccess: async () => {
+      toast.success("User deleted");
+      setEditUser(null);
       await refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -203,7 +216,7 @@ function AdminPage() {
     );
   }
 
-  const data = overview.data!;
+  const data = overview.data! as any;
 
   const openEditor = (u: AdminUser) => {
     setEditUser(u);
@@ -228,7 +241,7 @@ function AdminPage() {
         <div>
           <p className="text-eyebrow">Admin console</p>
           <h1 className="mt-1 text-3xl font-bold">Platform control center</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Users, billing, roles and usage in one place.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Users, plans, roles and usage in one place.</p>
         </div>
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
           <DialogTrigger asChild>
@@ -277,9 +290,15 @@ function AdminPage() {
         </Dialog>
       </div>
 
+      {data.legacyMode ? (
+        <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+          Compatibility mode is active. Manual plans are stored safely in account metadata until the billing migration is available on this database.
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={UsersRound} label="Total users" value={data.totals.users} note={`${data.totals.proUsers} Pro · ${data.totals.freeUsers} Free`} />
-        <Stat icon={BadgeDollarSign} label="Estimated MRR" value={`RM${data.totals.mrr}`} note="RM49 per active Pro user" />
+        <Stat icon={BadgeDollarSign} label="Estimated MRR" value={`RM${data.totals.mrr}`} note="Manual estimate; Stripe not connected" />
         <Stat icon={Bot} label="Autopilot active" value={data.totals.autopilotBlogs} note={`${data.totals.blogs} total blogs`} />
         <Stat icon={Sparkles} label="AI this month" value={data.totals.aiDrafts + data.totals.aiImages} note={`${data.totals.aiDrafts} drafts · ${data.totals.aiImages} images`} />
       </div>
@@ -290,13 +309,13 @@ function AdminPage() {
         <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="billing">Billing & usage</TabsTrigger>
+          <TabsTrigger value="billing">Plans & usage</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <div className="grid gap-4 lg:grid-cols-3">
             <MiniPanel title="Content" rows={[["Posts", data.totals.posts], ["Published", data.totals.published], ["Blogs", data.totals.blogs]]} />
-            <MiniPanel title="Subscribers" rows={[["Pro", data.totals.proUsers], ["Free", data.totals.freeUsers], ["MRR", `RM${data.totals.mrr}`]]} />
+            <MiniPanel title="Subscribers" rows={[["Pro", data.totals.proUsers], ["Free", data.totals.freeUsers], ["MRR estimate", `RM${data.totals.mrr}`]]} />
             <MiniPanel title="AI usage" rows={[["Drafts", data.totals.aiDrafts], ["Images", data.totals.aiImages], ["Autopilot blogs", data.totals.autopilotBlogs]]} />
           </div>
         </TabsContent>
@@ -315,7 +334,9 @@ function AdminPage() {
           </div>
 
           <div className="surface-panel divide-y divide-border">
-            {filteredUsers.map((u) => (
+            {filteredUsers.length === 0 ? (
+              <p className="p-6 text-sm text-muted-foreground">No users match this filter.</p>
+            ) : filteredUsers.map((u) => (
               <div key={u.id} className="flex flex-wrap items-center gap-3 p-4">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{u.displayName}</p>
@@ -323,6 +344,8 @@ function AdminPage() {
                 </div>
                 <PlanBadge plan={u.plan} />
                 <Badge variant="secondary">{u.subscriptionStatus}</Badge>
+                {u.roles.includes("admin") ? <Badge variant="outline">ADMIN</Badge> : null}
+                {u.roles.includes("moderator") ? <Badge variant="outline">MODERATOR</Badge> : null}
                 <span className="text-xs text-muted-foreground">{u.blogs} blogs · {u.posts} posts</span>
                 <Button size="sm" variant="outline" onClick={() => openEditor(u)}><Pencil aria-hidden /> Manage</Button>
               </div>
@@ -391,9 +414,30 @@ function AdminPage() {
                 </Button>
               </div>
             )}
+            {editUser ? (
+              <div className="rounded-lg border border-destructive/30 p-4">
+                <p className="text-sm font-medium">Danger zone</p>
+                <p className="mt-1 text-xs text-muted-foreground">Deleting a user removes the authentication account and any data linked by cascade rules. Your own admin account cannot be deleted here.</p>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="mt-3"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => {
+                    if (window.confirm(`Delete ${editUser.email || editUser.displayName}? This cannot be undone.`)) {
+                      deleteMutation.mutate(editUser.id);
+                    }
+                  }}
+                >
+                  <Trash2 aria-hidden /> {deleteMutation.isPending ? "Deleting…" : "Delete user"}
+                </Button>
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
-            <Button onClick={() => void saveEditor()} disabled={!edit.displayName.trim() || subscriptionMutation.isPending}>Save changes</Button>
+            <Button onClick={() => void saveEditor()} disabled={!edit.displayName.trim() || subscriptionMutation.isPending || profileMutation.isPending}>
+              {subscriptionMutation.isPending || profileMutation.isPending ? "Saving…" : "Save changes"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
