@@ -23,8 +23,7 @@ function isMissingBillingSchema(error: any) {
 }
 
 function metadataPlan(user: any) {
-  const plan = user?.app_metadata?.blogpilot_plan;
-  return plan === "pro" ? "pro" : "free";
+  return user?.app_metadata?.blogpilot_plan === "pro" ? "pro" : "free";
 }
 
 function metadataStatus(user: any) {
@@ -49,14 +48,9 @@ export const adminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context);
-
-    // Prefer the database snapshot when the new billing schema is installed.
-    const snapshot = await (context.supabase as any).rpc("admin_console_snapshot");
-    if (!snapshot.error && snapshot.data) return snapshot.data;
-
-    // Legacy-safe fallback: only core tables are required.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
+
     const [profiles, blogs, posts, roles, authUsers] = await Promise.all([
       admin.from("profiles").select("id, display_name, created_at"),
       admin.from("blogs").select("id, user_id, name, autopilot, posts_per_week"),
@@ -88,32 +82,43 @@ export const adminOverview = createServerFn({ method: "GET" })
     if (usageResult.error && !isMissingBillingSchema(usageResult.error)) throw new Error(usageResult.error.message);
     if (!usageResult.error) usage = usageResult.data ?? [];
 
-    const authMap = new Map((authUsers.data?.users ?? []).map((u: any) => [u.id, u]));
+    const profileMap = new Map((profiles.data ?? []).map((p: any) => [p.id, p]));
     const subMap = new Map(subscriptions.map((s: any) => [s.user_id, s]));
     const usageMap = new Map(usage.map((u: any) => [u.user_id, u]));
 
-    const users = (profiles.data ?? []).map((p: any) => {
-      const userBlogs = (blogs.data ?? []).filter((b: any) => b.user_id === p.id);
-      const userPosts = (posts.data ?? []).filter((x: any) => x.user_id === p.id);
-      const authUser = authMap.get(p.id) as any;
-      const subscription = subMap.get(p.id) as any;
-      const monthly = (usageMap.get(p.id) as any) ?? { ai_drafts: 0, ai_images: 0, autopilot_runs: 0 };
+    const users = (authUsers.data?.users ?? []).map((authUser: any) => {
+      const p = profileMap.get(authUser.id) as any;
+      const userBlogs = (blogs.data ?? []).filter((b: any) => b.user_id === authUser.id);
+      const userPosts = (posts.data ?? []).filter((x: any) => x.user_id === authUser.id);
+      const subscription = subMap.get(authUser.id) as any;
+      const monthly = (usageMap.get(authUser.id) as any) ?? {
+        ai_drafts: Number(authUser.app_metadata?.blogpilot_ai_drafts ?? 0),
+        ai_images: Number(authUser.app_metadata?.blogpilot_ai_images ?? 0),
+        autopilot_runs: 0,
+      };
       const plan = subscription?.plan === "pro" || subscription?.plan === "free"
         ? subscription.plan
         : metadataPlan(authUser);
       const subscriptionStatus = subscription?.status ?? metadataStatus(authUser);
 
       return {
-        id: p.id,
-        displayName: p.display_name ?? authUser?.user_metadata?.full_name ?? "(no name)",
-        email: authUser?.email ?? "",
-        createdAt: p.created_at,
-        lastSignInAt: authUser?.last_sign_in_at ?? null,
+        id: authUser.id,
+        displayName:
+          p?.display_name ??
+          authUser.user_metadata?.full_name ??
+          authUser.user_metadata?.name ??
+          authUser.email?.split("@")[0] ??
+          "(no name)",
+        email: authUser.email ?? "",
+        createdAt: p?.created_at ?? authUser.created_at,
+        lastSignInAt: authUser.last_sign_in_at ?? null,
         blogs: userBlogs.length,
         autopilotBlogs: userBlogs.filter((b: any) => b.autopilot).length,
         posts: userPosts.length,
         published: userPosts.filter((x: any) => x.status === "published").length,
-        roles: (roles.data ?? []).filter((r: any) => r.user_id === p.id).map((r: any) => r.role as string),
+        roles: (roles.data ?? [])
+          .filter((r: any) => r.user_id === authUser.id)
+          .map((r: any) => r.role as string),
         plan,
         subscriptionStatus,
         billingProvider: subscription?.billing_provider ?? "manual",
@@ -127,7 +132,7 @@ export const adminOverview = createServerFn({ method: "GET" })
       };
     });
 
-    users.sort((a: any, b: any) => (a.createdAt < b.createdAt ? 1 : -1));
+    users.sort((a: any, b: any) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const proUsers = users.filter(
       (u: any) => u.plan === "pro" && ["active", "trialing"].includes(u.subscriptionStatus),
     ).length;
@@ -146,7 +151,7 @@ export const adminOverview = createServerFn({ method: "GET" })
         aiImages: usage.reduce((sum: number, row: any) => sum + (row.ai_images ?? 0), 0),
       },
       users,
-      legacyMode: subscriptions.length === 0,
+      legacyMode: Boolean(subResult.error),
     };
   });
 
@@ -164,10 +169,8 @@ export const setUserRole = createServerFn({ method: "POST" })
     if (data.userId === context.userId && data.role === "admin" && !data.grant) {
       throw new Error("You cannot remove your own admin role.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
     if (data.role === "user") return { ok: true };
-
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (data.grant) {
       const { error } = await supabaseAdmin
         .from("user_roles")
@@ -227,7 +230,6 @@ export const setUserSubscription = createServerFn({ method: "POST" })
     if (data.plan === "free" || data.status === "suspended") {
       const autopilotResult = await admin.from("blogs").update({ autopilot: false }).eq("user_id", data.userId);
       if (autopilotResult.error) throw new Error(autopilotResult.error.message);
-
       const autoPublishResult = await admin
         .from("blogs")
         .update({ autopilot_auto_publish: false })
@@ -252,11 +254,10 @@ export const updateAdminUser = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
 
-    const { error } = await admin
+    const profileResult = await admin
       .from("profiles")
-      .update({ display_name: data.displayName })
-      .eq("id", data.userId);
-    if (error) throw new Error(error.message);
+      .upsert({ id: data.userId, display_name: data.displayName }, { onConflict: "id" });
+    if (profileResult.error) throw new Error(profileResult.error.message);
 
     const current = await admin.auth.admin.getUserById(data.userId);
     if (!current.error && current.data?.user) {
@@ -332,8 +333,7 @@ export const deleteUserAccount = createServerFn({ method: "POST" })
       throw new Error("You cannot delete your own admin account.");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = supabaseAdmin as any;
-    const { error } = await admin.auth.admin.deleteUser(data.userId);
+    const { error } = await (supabaseAdmin as any).auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
