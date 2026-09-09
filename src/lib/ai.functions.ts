@@ -5,7 +5,7 @@ import { blogContext, chatComplete, extractJson, generateImage, slugifyServer } 
 
 function missingUsageRpc(error: any) {
   const message = String(error?.message ?? error ?? "").toLowerCase();
-  return message.includes("consume_ai_") || message.includes("schema cache") || message.includes("could not find the function");
+  return message.includes("consume_ai_") || message.includes("refund_ai_") || message.includes("schema cache") || message.includes("could not find the function");
 }
 
 function missingEntitlementSchema(error: any) {
@@ -63,7 +63,7 @@ async function consumeUsage(kind: "draft" | "image", userId: string) {
 
   const fn = kind === "draft" ? "consume_ai_draft_usage" : "consume_ai_image_usage";
   const rpc = await admin.rpc(fn, { p_user_id: userId });
-  if (!rpc.error) return;
+  if (!rpc.error) return { storage: "database" as const };
   if (!missingUsageRpc(rpc.error)) throw new Error(rpc.error.message);
 
   // Legacy database fallback: keep monthly counters in auth app_metadata.
@@ -85,6 +85,45 @@ async function consumeUsage(kind: "draft" | "image", userId: string) {
     },
   });
   if (updated.error) throw new Error(updated.error.message);
+  return { storage: "metadata" as const };
+}
+
+async function refundUsage(kind: "draft" | "image", userId: string, storage: "database" | "metadata") {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = supabaseAdmin as any;
+
+  if (storage === "database") {
+    const fn = kind === "draft" ? "refund_ai_draft_usage" : "refund_ai_image_usage";
+    const refund = await admin.rpc(fn, { p_user_id: userId });
+    if (!refund.error) return;
+    if (!missingUsageRpc(refund.error)) {
+      console.error("AI usage refund failed", refund.error);
+      return;
+    }
+  }
+
+  // Legacy fallback, and fallback when the refund RPC has not been migrated yet.
+  const userResult = await admin.auth.admin.getUserById(userId);
+  if (userResult.error || !userResult.data?.user) {
+    if (userResult.error) console.error("AI metadata refund lookup failed", userResult.error);
+    return;
+  }
+
+  const user = userResult.data.user;
+  const app = user.app_metadata ?? {};
+  const month = new Date().toISOString().slice(0, 7);
+  if (app.blogpilot_usage_month !== month) return;
+
+  const drafts = Math.max(Number(app.blogpilot_ai_drafts ?? 0) - (kind === "draft" ? 1 : 0), 0);
+  const images = Math.max(Number(app.blogpilot_ai_images ?? 0) - (kind === "image" ? 1 : 0), 0);
+  const updated = await admin.auth.admin.updateUserById(userId, {
+    app_metadata: {
+      ...app,
+      blogpilot_ai_drafts: drafts,
+      blogpilot_ai_images: images,
+    },
+  });
+  if (updated.error) console.error("AI metadata refund failed", updated.error);
 }
 
 export const generateTopics = createServerFn({ method: "POST" })
@@ -167,40 +206,44 @@ export const generateArticle = createServerFn({ method: "POST" })
     if (postError) throw new Error(postError.message);
     if (!post || !post.blogs) throw new Error("Post not found");
 
-    await consumeUsage("draft", userId);
-    const blog = post.blogs;
+    const reservation = await consumeUsage("draft", userId);
+    try {
+      const blog = post.blogs;
+      const raw = await chatComplete([
+        {
+          role: "system",
+          content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences.",
+        },
+        {
+          role: "user",
+          content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
+        },
+      ]);
 
-    const raw = await chatComplete([
-      {
-        role: "system",
-        content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences.",
-      },
-      {
-        role: "user",
-        content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
-      },
-    ]);
+      const article = extractJson<{
+        body: string;
+        seo_title?: string;
+        meta_description?: string;
+        keywords?: string;
+      }>(raw);
 
-    const article = extractJson<{
-      body: string;
-      seo_title?: string;
-      meta_description?: string;
-      keywords?: string;
-    }>(raw);
+      const { error } = await supabase
+        .from("posts")
+        .update({
+          body: article.body,
+          seo_title: article.seo_title ?? post.seo_title,
+          meta_description: article.meta_description ?? post.meta_description,
+          keywords: article.keywords ?? post.keywords,
+          status: "drafted",
+        })
+        .eq("id", data.postId);
+      if (error) throw new Error(error.message);
 
-    const { error } = await supabase
-      .from("posts")
-      .update({
-        body: article.body,
-        seo_title: article.seo_title ?? post.seo_title,
-        meta_description: article.meta_description ?? post.meta_description,
-        keywords: article.keywords ?? post.keywords,
-        status: "drafted",
-      })
-      .eq("id", data.postId);
-    if (error) throw new Error(error.message);
-
-    return { ok: true };
+      return { ok: true };
+    } catch (error) {
+      await refundUsage("draft", userId, reservation.storage);
+      throw error;
+    }
   });
 
 export const generateFeaturedImage = createServerFn({ method: "POST" })
@@ -217,32 +260,36 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
     if (postError) throw new Error(postError.message);
     if (!post || !post.blogs) throw new Error("Post not found");
 
-    await consumeUsage("image", userId);
+    const reservation = await consumeUsage("image", userId);
+    try {
+      const prompt = [
+        `Create a clean, eye-catching blog featured image (16:9) for an article titled "${post.title}".`,
+        `Blog: ${post.blogs.name}. Niche: ${post.blogs.niche}.`,
+        post.keywords ? `Related keywords: ${post.keywords}.` : null,
+        "Style: modern editorial illustration, no text, no watermarks.",
+      ].filter(Boolean).join(" ");
 
-    const prompt = [
-      `Create a clean, eye-catching blog featured image (16:9) for an article titled "${post.title}".`,
-      `Blog: ${post.blogs.name}. Niche: ${post.blogs.niche}.`,
-      post.keywords ? `Related keywords: ${post.keywords}.` : null,
-      "Style: modern editorial illustration, no text, no watermarks.",
-    ].filter(Boolean).join(" ");
+      const dataUrl = await generateImage(prompt);
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
-    const dataUrl = await generateImage(prompt);
-    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin;
+      const path = `${data.postId}.png`;
+      const { error: uploadError } = await admin.storage
+        .from("post-images")
+        .upload(path, bytes, { contentType: "image/png", upsert: true });
+      if (uploadError) throw new Error(uploadError.message);
 
-    const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin;
-    const path = `${data.postId}.png`;
-    const { error: uploadError } = await admin.storage
-      .from("post-images")
-      .upload(path, bytes, { contentType: "image/png", upsert: true });
-    if (uploadError) throw new Error(uploadError.message);
+      const imageUrl = `/api/public/post-image/${data.postId}`;
+      const { error } = await supabase
+        .from("posts")
+        .update({ image_url: imageUrl })
+        .eq("id", data.postId);
+      if (error) throw new Error(error.message);
 
-    const imageUrl = `/api/public/post-image/${data.postId}`;
-    const { error } = await supabase
-      .from("posts")
-      .update({ image_url: imageUrl })
-      .eq("id", data.postId);
-    if (error) throw new Error(error.message);
-
-    return { imageUrl };
+      return { imageUrl };
+    } catch (error) {
+      await refundUsage("image", userId, reservation.storage);
+      throw error;
+    }
   });
