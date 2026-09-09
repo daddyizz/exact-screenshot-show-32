@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { FileText, LayoutDashboard, LogOut, Notebook, Settings, Shield } from "lucide-react";
+import { FileText, LayoutDashboard, LogOut, Megaphone, Notebook, Settings, Shield } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +50,13 @@ function AuthenticatedLayout() {
     );
   }
 
+  const adminNav = admin.data?.isAdmin
+    ? [
+        { to: "/admin", label: "Admin", icon: Shield },
+        { to: "/admin/ads", label: "Ads", icon: Megaphone },
+      ]
+    : [];
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
@@ -58,25 +65,23 @@ function AuthenticatedLayout() {
             BlogPilot<span className="text-primary">.</span>AI
           </Link>
           <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
-            {[...nav, ...(admin.data?.isAdmin ? [{ to: "/admin", label: "Admin", icon: Shield } as const] : [])].map(
-              (item) => {
-                const active = pathname === item.to;
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                      active
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                  >
-                    <item.icon className="size-4" aria-hidden />
-                    <span className="hidden sm:inline">{item.label}</span>
-                  </Link>
-                );
-              },
-            )}
+            {[...nav, ...adminNav].map((item) => {
+              const active = pathname === item.to;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to as any}
+                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                    active
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <item.icon className="size-4" aria-hidden />
+                  <span className="hidden sm:inline">{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
           <span className="hidden text-xs text-muted-foreground md:inline">{user?.email}</span>
           <Button
@@ -97,7 +102,6 @@ function AuthenticatedLayout() {
         <AdSlot id="app-top" format="leaderboard" className="mb-6" />
         <Outlet />
       </div>
-
     </div>
   );
 }
