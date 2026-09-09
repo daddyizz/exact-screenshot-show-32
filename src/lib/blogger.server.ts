@@ -11,6 +11,23 @@ export function googleCreds(): Creds {
   return { clientId, clientSecret };
 }
 
+export function bloggerRedirectUri(requested?: string): string {
+  const configured = process.env["BLOGGER_REDIRECT_URI"]?.trim();
+  if (configured) return configured;
+  if (requested) return requested;
+  throw new Error("Blogger publishing is not configured yet (missing BLOGGER_REDIRECT_URI).");
+}
+
+export function bloggerOAuthConfig(requested?: string) {
+  const redirectUri = bloggerRedirectUri(requested);
+  const configured = Boolean(
+    process.env["GOOGLE_OAUTH_CLIENT_ID"] &&
+      process.env["GOOGLE_OAUTH_CLIENT_SECRET"] &&
+      redirectUri,
+  );
+  return { configured, redirectUri };
+}
+
 export function buildAuthUrl(redirectUri: string, state: string) {
   const { clientId } = googleCreds();
   const params = new URLSearchParams({
