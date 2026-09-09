@@ -1,8 +1,20 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /dashboard
+Disallow: /queue
+Disallow: /articles
+Disallow: /settings
+Disallow: /admin
+Disallow: /blogger/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /dashboard
+Disallow: /queue
+Disallow: /articles
+Disallow: /settings
+Disallow: /admin
+Disallow: /blogger/
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +24,11 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /queue
+Disallow: /articles
+Disallow: /settings
+Disallow: /admin
+Disallow: /blogger/
+
+Sitemap: https://ess32.lovable.app/sitemap.xml
