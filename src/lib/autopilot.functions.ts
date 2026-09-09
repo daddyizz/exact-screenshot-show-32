@@ -2,17 +2,67 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function requirePro(userId: string) {
+function isMissingBillingSchema(error: any) {
+  const message = String(error?.message ?? error ?? "").toLowerCase();
+  return (
+    message.includes("user_subscriptions") ||
+    message.includes("schema cache") ||
+    message.includes("does not exist") ||
+    message.includes("could not find the table")
+  );
+}
+
+async function hasProEntitlement(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
+
+  // Primary source: subscription table, when the billing schema is available.
+  const subscription = await admin
+    .from("user_subscriptions")
+    .select("plan, status")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!subscription.error && subscription.data) {
+    return (
+      subscription.data.plan === "pro" &&
+      ["active", "trialing"].includes(subscription.data.status)
+    );
+  }
+  if (subscription.error && !isMissingBillingSchema(subscription.error)) {
+    throw new Error(subscription.error.message);
+  }
+
+  // Compatibility source: auth app_metadata used by the manual Admin plan controls.
   const userResult = await admin.auth.admin.getUserById(userId);
   if (userResult.error) throw new Error(userResult.error.message);
   const user = userResult.data?.user;
   if (!user) throw new Error("User not found");
   const app = user.app_metadata ?? {};
-  const plan = app.blogpilot_plan === "pro" ? "pro" : "free";
-  const status = app.blogpilot_subscription_status ?? "active";
-  if (plan !== "pro" || !["active", "trialing"].includes(status)) {
+  const metadataPlan = app.blogpilot_plan;
+  const metadataStatus = app.blogpilot_subscription_status ?? "active";
+  if (
+    metadataPlan === "pro" &&
+    ["active", "trialing"].includes(metadataStatus)
+  ) {
+    return true;
+  }
+
+  // Platform admins must not be accidentally locked out while legacy billing
+  // data is being migrated. Explicit suspended status still wins.
+  if (metadataStatus === "suspended") return false;
+  const role = await admin
+    .from("user_roles")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (role.error) throw new Error(role.error.message);
+  return Boolean(role.data);
+}
+
+async function requirePro(userId: string) {
+  if (!(await hasProEntitlement(userId))) {
     throw new Error("Autopilot is available on the Pro plan.");
   }
 }
@@ -91,7 +141,11 @@ export const runDueAutopilot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => z.object({ origin: z.string().url().optional() }).parse(data ?? {}))
   .handler(async ({ data, context }) => {
-    await requirePro(context.userId);
+    // This function is invoked automatically by the dashboard. A Free account
+    // should simply be skipped, never crash the page with an entitlement error.
+    if (!(await hasProEntitlement(context.userId))) {
+      return { ran: 0, results: [], skipped: "pro_required" as const };
+    }
 
     const { data: blogs, error } = await context.supabase
       .from("blogs")
