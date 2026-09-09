@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlayCircle, Plus, Rocket, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { generateTopics } from "@/lib/ai.functions";
 import { runAutopilotNow, runDueAutopilot, updateAutopilot } from "@/lib/autopilot.functions";
+import { createBlog as createBlogServer } from "@/lib/blogs.functions";
 import { Switch } from "@/components/ui/switch";
 import { AdSlot } from "@/components/AdSlot";
 import { PlanUsageCard } from "@/components/PlanUsageCard";
@@ -51,9 +51,9 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function Dashboard() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const generateTopicsFn = useServerFn(generateTopics);
+  const createBlogFn = useServerFn(createBlogServer);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -86,19 +86,17 @@ function Dashboard() {
   });
 
   const createBlog = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("Not signed in");
-      const { error } = await supabase.from("blogs").insert({
-        user_id: user.id,
-        name: form.name,
-        blog_url: form.blog_url || null,
-        niche: form.niche,
-        target_country: form.target_country,
-        language: form.language,
-        posts_per_week: form.posts_per_week,
-      });
-      if (error) throw error;
-    },
+    mutationFn: async () =>
+      createBlogFn({
+        data: {
+          name: form.name,
+          blogUrl: form.blog_url.trim() || null,
+          niche: form.niche,
+          targetCountry: form.target_country,
+          language: form.language,
+          postsPerWeek: form.posts_per_week,
+        },
+      }),
     onSuccess: async () => {
       toast.success("Blog added");
       setOpen(false);
