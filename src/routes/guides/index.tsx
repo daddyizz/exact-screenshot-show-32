@@ -3,16 +3,23 @@ import { ArrowRight } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
 
 export const Route = createFileRoute("/guides/")({
-  head: () => ({ meta: [{ title: "Publishing Guides — BlogPilot AI" }, { name: "description", content: "Practical, in-depth guides for SEO content planning, AI-assisted editing, Blogger automation and sustainable publishing workflows." }] }),
+  head: () => ({ meta: [{ title: "Publishing Guides — BlogPilot AI" }, { name: "description", content: "Practical, in-depth guides for SEO content planning, AI-assisted editing, Blogger automation, indexing and sustainable publishing workflows." }] }),
   component: GuidesPage,
 });
 
 const guides = [
   { to: "/guides/seo-content-plan", title: "How to build an SEO content plan", body: "Turn audience needs and search intent into distinct topics, useful briefs and maintainable topic clusters." },
+  { to: "/guides/seo-content-brief", title: "SEO content brief template", body: "Define the audience, intent, evidence, structure and review requirements before drafting begins." },
   { to: "/guides/review-ai-articles", title: "How to review AI-generated articles", body: "Fact-check claims, remove filler, verify links and add the editorial value a raw generated draft still needs." },
+  { to: "/guides/ai-content-fact-checking", title: "Fact-checking AI-written content", body: "Verify changing facts, quotations, statistics and sources before fluent AI text becomes public information." },
+  { to: "/guides/blog-post-workflow", title: "Blog post workflow: idea to published", body: "Move ideas through briefs, research, drafting, approval, publishing and maintenance with clear editorial states." },
   { to: "/guides/blogger-automation", title: "A reliable Blogger automation workflow", body: "Structure publishing states, OAuth recovery, retries, remote post updates and operational history without losing control." },
+  { to: "/guides/blogger-seo-settings", title: "Blogger SEO settings guide", body: "Set up descriptions, URLs, indexing controls, redirects and crawlable navigation without overcomplicating Blogger." },
   { to: "/guides/blog-seo-checklist", title: "Blog SEO checklist before you publish", body: "Check titles, headings, links, mobile readability, crawlability, indexing intent and ad separation before a page goes live." },
+  { to: "/guides/internal-linking-strategy", title: "Internal linking strategy for blogs", body: "Connect topic hubs and supporting articles with useful, descriptive links instead of keyword clutter." },
+  { to: "/guides/search-console-indexing", title: "Search Console indexing workflow", body: "Help new pages get discovered with internal links, sitemaps and URL Inspection while diagnosing indexing blockers sensibly." },
   { to: "/guides/content-calendar", title: "Build a sustainable content calendar", body: "Choose a realistic cadence that balances new articles with review, maintenance and the actual capacity of your workflow." },
+  { to: "/guides/update-old-blog-posts", title: "How to update old blog posts", body: "Refresh stale facts, consolidate overlapping pages and preserve useful URLs instead of creating unnecessary duplicates." },
 ] as const;
 
 function GuidesPage() {
@@ -31,11 +38,12 @@ function GuidesPage() {
 
     <h2>A sensible order for a new blog</h2>
     <ol>
-      <li>Start with the SEO content planning guide and define a focused editorial queue.</li>
-      <li>Use the AI review guide whenever automation helps create a draft.</li>
-      <li>Apply the pre-publish SEO checklist before approving the page.</li>
+      <li>Start with the SEO content planning and content brief guides.</li>
+      <li>Use the AI review and fact-checking guides whenever automation assists with a draft.</li>
+      <li>Run the pre-publish SEO checklist and add useful internal links.</li>
       <li>Introduce Blogger automation only after the review workflow is clear.</li>
-      <li>Use the content calendar guide to set a cadence you can actually maintain.</li>
+      <li>Use Search Console to diagnose discovery and indexing after publication.</li>
+      <li>Reserve calendar capacity for updates as well as new posts.</li>
     </ol>
   </PublicPageLayout>;
 }
