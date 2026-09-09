@@ -1,33 +1,41 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight } from "lucide-react";
 import { PublicPageLayout } from "@/components/PublicPageLayout";
 
 export const Route = createFileRoute("/guides")({
-  head: () => ({ meta: [{ title: "Publishing Guides — BlogPilot AI" }, { name: "description", content: "Practical guides for planning SEO content, reviewing AI-assisted drafts and building a reliable Blogger publishing workflow." }] }),
+  head: () => ({ meta: [{ title: "Publishing Guides — BlogPilot AI" }, { name: "description", content: "Practical, in-depth guides for SEO content planning, AI-assisted editing, Blogger automation and sustainable publishing workflows." }] }),
   component: GuidesPage,
 });
 
+const guides = [
+  { to: "/guides/seo-content-plan", title: "How to build an SEO content plan", body: "Turn audience needs and search intent into distinct topics, useful briefs and maintainable topic clusters." },
+  { to: "/guides/review-ai-articles", title: "How to review AI-generated articles", body: "Fact-check claims, remove filler, verify links and add the editorial value a raw generated draft still needs." },
+  { to: "/guides/blogger-automation", title: "A reliable Blogger automation workflow", body: "Structure publishing states, OAuth recovery, retries, remote post updates and operational history without losing control." },
+  { to: "/guides/blog-seo-checklist", title: "Blog SEO checklist before you publish", body: "Check titles, headings, links, mobile readability, crawlability, indexing intent and ad separation before a page goes live." },
+  { to: "/guides/content-calendar", title: "Build a sustainable content calendar", body: "Choose a realistic cadence that balances new articles with review, maintenance and the actual capacity of your workflow." },
+] as const;
+
 function GuidesPage() {
-  return <PublicPageLayout eyebrow="Resources" title="Practical publishing guides" description="Use these guides to build a repeatable editorial workflow, review AI-assisted drafts responsibly and publish to Blogger without sacrificing quality.">
-    <h2>1. Build an SEO content plan that is actually usable</h2>
-    <p>A useful content plan starts with the audience, not a giant keyword list. Define the reader, the problem they are trying to solve and the type of page that would satisfy that search. Group ideas by intent: informational, comparison, transactional and navigational. This prevents a queue full of near-duplicate topics.</p>
-    <p>For each article, write a working title, primary keyword, supporting terms, a short outline and the action you want the reader to take next. Keep the outline focused enough that every section earns its place. A content calendar should also reflect how often you can review and maintain posts after publication, not just how fast you can generate them.</p>
-    <h3>Before drafting</h3>
-    <p>Check whether you already published something that answers the same question. If so, update or expand the existing article instead of creating a competing page. Confirm that the topic fits the site niche and that you can provide useful context rather than a generic summary.</p>
+  return <PublicPageLayout eyebrow="Resources" title="Practical publishing guides" description="Original, practical resources for planning useful content, reviewing AI-assisted drafts and running a reliable Blogger publishing workflow.">
+    <div className="grid gap-4 not-prose sm:grid-cols-2">
+      {guides.map((guide) => <Link key={guide.to} to={guide.to} className="group rounded-xl border border-border bg-card p-5 transition hover:border-primary/40 hover:bg-accent/30">
+        <h2 className="font-display text-lg font-semibold tracking-tight">{guide.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{guide.body}</p>
+        <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary">Read guide <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden /></span>
+      </Link>)}
+    </div>
 
-    <h2>2. Review AI-assisted articles before publishing</h2>
-    <p>AI can accelerate drafting, but the editor remains responsible for the final page. Review names, dates, product details, statistics, prices and legal or financial claims. Remove anything that cannot be verified. Look for repetitive introductions, vague conclusions and sentences that sound authoritative without evidence.</p>
-    <p>Then review structure. Use one clear page title, descriptive H2 sections and H3 headings only where they genuinely organise a subsection. Break long paragraphs into readable blocks and make sure every link points to a relevant destination. Add examples or original explanations where they help the reader understand the topic.</p>
-    <h3>Final quality check</h3>
-    <p>Ask whether the article answers the searcher's main question early, whether it adds something useful beyond common summaries, and whether a human editor would be comfortable putting their site name behind every claim. If not, keep editing.</p>
+    <h2>Why these guides exist</h2>
+    <p>Publishing automation is useful only when it sits on top of a sound editorial process. These resources focus on the decisions that still matter when drafting becomes faster: choosing topics with a clear purpose, checking factual claims, keeping search pages distinct, handling publishing failures and maintaining older content.</p>
+    <p>They are designed to stand on their own whether or not you use BlogPilot AI. Product features can speed up parts of the workflow, but the publisher remains responsible for what ultimately appears on a public blog.</p>
 
-    <h2>3. Keep Blogger automation reliable</h2>
-    <p>Automation works best when the publishing workflow has clear states: idea, drafted, reviewed and published. Avoid auto-publishing unfinished ideas. Connect the correct Blogger site, verify the selected blog name and periodically confirm that OAuth access still works.</p>
-    <p>If a publish attempt fails, do not repeatedly click the publish button without checking the error. Determine whether the issue is authentication, a missing Blogger connection, an invalid post state or a temporary provider problem. A reliable system should record failures and allow a controlled retry rather than silently creating duplicate posts.</p>
-    <h3>Use a safe cadence</h3>
-    <p>A sustainable cadence is better than a burst of low-quality pages. Choose a posting frequency that leaves time for review, fact-checking, internal linking and updates to older articles. Search visibility and reader trust depend more on useful pages than on raw publishing volume.</p>
-
-    <h2>4. Separate editorial content from advertising</h2>
-    <p>Ads should not be styled in a way that makes them look like navigation, download buttons or required steps. Keep advertising visually distinct from editorial content and avoid placing ads on screens that have little or no publisher content. The page should still be useful if every ad disappeared.</p>
-    <p>For a SaaS product, public documentation, guides, policies and help resources should stand on their own. Logged-in dashboards are product interfaces; they should not be treated as substitutes for public editorial content when preparing a site for advertising review.</p>
+    <h2>A sensible order for a new blog</h2>
+    <ol>
+      <li>Start with the SEO content planning guide and define a focused editorial queue.</li>
+      <li>Use the AI review guide whenever automation helps create a draft.</li>
+      <li>Apply the pre-publish SEO checklist before approving the page.</li>
+      <li>Introduce Blogger automation only after the review workflow is clear.</li>
+      <li>Use the content calendar guide to set a cadence you can actually maintain.</li>
+    </ol>
   </PublicPageLayout>;
 }
