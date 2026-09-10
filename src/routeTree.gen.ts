@@ -11,13 +11,35 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as GuidesRouteImport } from './routes/guides'
+import { Route as HelpRouteImport } from './routes/help'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedArticlesRouteImport } from './routes/_authenticated/articles'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedQueueRouteImport } from './routes/_authenticated/queue'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as GuidesIndexRouteImport } from './routes/guides/index'
+import { Route as GuidesAiContentFactCheckingRouteImport } from './routes/guides/ai-content-fact-checking'
+import { Route as GuidesBlogPostWorkflowRouteImport } from './routes/guides/blog-post-workflow'
+import { Route as GuidesBlogSeoChecklistRouteImport } from './routes/guides/blog-seo-checklist'
+import { Route as GuidesBloggerAutomationRouteImport } from './routes/guides/blogger-automation'
+import { Route as GuidesBloggerSeoSettingsRouteImport } from './routes/guides/blogger-seo-settings'
+import { Route as GuidesContentCalendarRouteImport } from './routes/guides/content-calendar'
+import { Route as GuidesInternalLinkingStrategyRouteImport } from './routes/guides/internal-linking-strategy'
+import { Route as GuidesReviewAiArticlesRouteImport } from './routes/guides/review-ai-articles'
+import { Route as GuidesSearchConsoleIndexingRouteImport } from './routes/guides/search-console-indexing'
+import { Route as GuidesSeoContentBriefRouteImport } from './routes/guides/seo-content-brief'
+import { Route as GuidesSeoContentPlanRouteImport } from './routes/guides/seo-content-plan'
+import { Route as GuidesUpdateOldBlogPostsRouteImport } from './routes/guides/update-old-blog-posts'
 import { Route as SitemapXmlRouteImport } from './routes/sitemap.xml'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
+import { Route as AuthenticatedAdminOperationsRouteImport } from './routes/_authenticated/admin.operations'
 import { Route as AuthenticatedBloggerCallbackRouteImport } from './routes/_authenticated/blogger.callback'
 import { Route as ApiPublicCronAutopilotRouteImport } from './routes/api/public/cron/autopilot'
 import { Route as ApiPublicPostImagePostIdRouteImport } from './routes/api/public/post-image/$postId'
@@ -31,9 +53,39 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuidesRoute = GuidesRouteImport.update({
+  id: '/guides',
+  path: '/guides',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -61,11 +113,97 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const GuidesIndexRoute = GuidesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesAiContentFactCheckingRoute =
+  GuidesAiContentFactCheckingRouteImport.update({
+    id: '/ai-content-fact-checking',
+    path: '/ai-content-fact-checking',
+    getParentRoute: () => GuidesRoute,
+  } as any)
+const GuidesBlogPostWorkflowRoute = GuidesBlogPostWorkflowRouteImport.update({
+  id: '/blog-post-workflow',
+  path: '/blog-post-workflow',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesBlogSeoChecklistRoute = GuidesBlogSeoChecklistRouteImport.update({
+  id: '/blog-seo-checklist',
+  path: '/blog-seo-checklist',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesBloggerAutomationRoute = GuidesBloggerAutomationRouteImport.update({
+  id: '/blogger-automation',
+  path: '/blogger-automation',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesBloggerSeoSettingsRoute =
+  GuidesBloggerSeoSettingsRouteImport.update({
+    id: '/blogger-seo-settings',
+    path: '/blogger-seo-settings',
+    getParentRoute: () => GuidesRoute,
+  } as any)
+const GuidesContentCalendarRoute = GuidesContentCalendarRouteImport.update({
+  id: '/content-calendar',
+  path: '/content-calendar',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesInternalLinkingStrategyRoute =
+  GuidesInternalLinkingStrategyRouteImport.update({
+    id: '/internal-linking-strategy',
+    path: '/internal-linking-strategy',
+    getParentRoute: () => GuidesRoute,
+  } as any)
+const GuidesReviewAiArticlesRoute = GuidesReviewAiArticlesRouteImport.update({
+  id: '/review-ai-articles',
+  path: '/review-ai-articles',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesSearchConsoleIndexingRoute =
+  GuidesSearchConsoleIndexingRouteImport.update({
+    id: '/search-console-indexing',
+    path: '/search-console-indexing',
+    getParentRoute: () => GuidesRoute,
+  } as any)
+const GuidesSeoContentBriefRoute = GuidesSeoContentBriefRouteImport.update({
+  id: '/seo-content-brief',
+  path: '/seo-content-brief',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesSeoContentPlanRoute = GuidesSeoContentPlanRouteImport.update({
+  id: '/seo-content-plan',
+  path: '/seo-content-plan',
+  getParentRoute: () => GuidesRoute,
+} as any)
+const GuidesUpdateOldBlogPostsRoute =
+  GuidesUpdateOldBlogPostsRouteImport.update({
+    id: '/update-old-blog-posts',
+    path: '/update-old-blog-posts',
+    getParentRoute: () => GuidesRoute,
+  } as any)
 const SitemapXmlRoute = SitemapXmlRouteImport.update({
   id: '/sitemap/xml',
   path: '/sitemap/xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminAdsRoute = AuthenticatedAdminAdsRouteImport.update({
+  id: '/ads',
+  path: '/ads',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminOperationsRoute =
+  AuthenticatedAdminOperationsRouteImport.update({
+    id: '/operations',
+    path: '/operations',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedBloggerCallbackRoute =
   AuthenticatedBloggerCallbackRouteImport.update({
     id: '/blogger/callback',
@@ -86,27 +224,69 @@ const ApiPublicPostImagePostIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
-  '/admin': typeof AuthenticatedAdminRoute
+  '/contact': typeof ContactRoute
+  '/guides': typeof GuidesRouteWithChildren
+  '/help': typeof HelpRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/articles': typeof AuthenticatedArticlesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/guides/ai-content-fact-checking': typeof GuidesAiContentFactCheckingRoute
+  '/guides/blog-post-workflow': typeof GuidesBlogPostWorkflowRoute
+  '/guides/blog-seo-checklist': typeof GuidesBlogSeoChecklistRoute
+  '/guides/blogger-automation': typeof GuidesBloggerAutomationRoute
+  '/guides/blogger-seo-settings': typeof GuidesBloggerSeoSettingsRoute
+  '/guides/content-calendar': typeof GuidesContentCalendarRoute
+  '/guides/internal-linking-strategy': typeof GuidesInternalLinkingStrategyRoute
+  '/guides/review-ai-articles': typeof GuidesReviewAiArticlesRoute
+  '/guides/search-console-indexing': typeof GuidesSearchConsoleIndexingRoute
+  '/guides/seo-content-brief': typeof GuidesSeoContentBriefRoute
+  '/guides/seo-content-plan': typeof GuidesSeoContentPlanRoute
+  '/guides/update-old-blog-posts': typeof GuidesUpdateOldBlogPostsRoute
   '/sitemap/xml': typeof SitemapXmlRoute
+  '/guides/': typeof GuidesIndexRoute
+  '/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
-  '/admin': typeof AuthenticatedAdminRoute
+  '/contact': typeof ContactRoute
+  '/help': typeof HelpRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/articles': typeof AuthenticatedArticlesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/guides/ai-content-fact-checking': typeof GuidesAiContentFactCheckingRoute
+  '/guides/blog-post-workflow': typeof GuidesBlogPostWorkflowRoute
+  '/guides/blog-seo-checklist': typeof GuidesBlogSeoChecklistRoute
+  '/guides/blogger-automation': typeof GuidesBloggerAutomationRoute
+  '/guides/blogger-seo-settings': typeof GuidesBloggerSeoSettingsRoute
+  '/guides/content-calendar': typeof GuidesContentCalendarRoute
+  '/guides/internal-linking-strategy': typeof GuidesInternalLinkingStrategyRoute
+  '/guides/review-ai-articles': typeof GuidesReviewAiArticlesRoute
+  '/guides/search-console-indexing': typeof GuidesSearchConsoleIndexingRoute
+  '/guides/seo-content-brief': typeof GuidesSeoContentBriefRoute
+  '/guides/seo-content-plan': typeof GuidesSeoContentPlanRoute
+  '/guides/update-old-blog-posts': typeof GuidesUpdateOldBlogPostsRoute
   '/sitemap/xml': typeof SitemapXmlRoute
+  '/guides': typeof GuidesIndexRoute
+  '/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
@@ -114,14 +294,36 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
-  '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/contact': typeof ContactRoute
+  '/guides': typeof GuidesRouteWithChildren
+  '/help': typeof HelpRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/articles': typeof AuthenticatedArticlesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/queue': typeof AuthenticatedQueueRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/guides/ai-content-fact-checking': typeof GuidesAiContentFactCheckingRoute
+  '/guides/blog-post-workflow': typeof GuidesBlogPostWorkflowRoute
+  '/guides/blog-seo-checklist': typeof GuidesBlogSeoChecklistRoute
+  '/guides/blogger-automation': typeof GuidesBloggerAutomationRoute
+  '/guides/blogger-seo-settings': typeof GuidesBloggerSeoSettingsRoute
+  '/guides/content-calendar': typeof GuidesContentCalendarRoute
+  '/guides/internal-linking-strategy': typeof GuidesInternalLinkingStrategyRoute
+  '/guides/review-ai-articles': typeof GuidesReviewAiArticlesRoute
+  '/guides/search-console-indexing': typeof GuidesSearchConsoleIndexingRoute
+  '/guides/seo-content-brief': typeof GuidesSeoContentBriefRoute
+  '/guides/seo-content-plan': typeof GuidesSeoContentPlanRoute
+  '/guides/update-old-blog-posts': typeof GuidesUpdateOldBlogPostsRoute
   '/sitemap/xml': typeof SitemapXmlRoute
+  '/guides/': typeof GuidesIndexRoute
+  '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
+  '/_authenticated/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/_authenticated/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
@@ -129,41 +331,105 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/auth'
+    | '/contact'
+    | '/guides'
+    | '/help'
+    | '/privacy'
+    | '/terms'
     | '/admin'
     | '/articles'
     | '/dashboard'
     | '/queue'
     | '/settings'
+    | '/guides/ai-content-fact-checking'
+    | '/guides/blog-post-workflow'
+    | '/guides/blog-seo-checklist'
+    | '/guides/blogger-automation'
+    | '/guides/blogger-seo-settings'
+    | '/guides/content-calendar'
+    | '/guides/internal-linking-strategy'
+    | '/guides/review-ai-articles'
+    | '/guides/search-console-indexing'
+    | '/guides/seo-content-brief'
+    | '/guides/seo-content-plan'
+    | '/guides/update-old-blog-posts'
     | '/sitemap/xml'
+    | '/guides/'
+    | '/admin/ads'
+    | '/admin/operations'
     | '/blogger/callback'
+    | '/admin/'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/auth'
-    | '/admin'
+    | '/contact'
+    | '/help'
+    | '/privacy'
+    | '/terms'
     | '/articles'
     | '/dashboard'
     | '/queue'
     | '/settings'
+    | '/guides/ai-content-fact-checking'
+    | '/guides/blog-post-workflow'
+    | '/guides/blog-seo-checklist'
+    | '/guides/blogger-automation'
+    | '/guides/blogger-seo-settings'
+    | '/guides/content-calendar'
+    | '/guides/internal-linking-strategy'
+    | '/guides/review-ai-articles'
+    | '/guides/search-console-indexing'
+    | '/guides/seo-content-brief'
+    | '/guides/seo-content-plan'
+    | '/guides/update-old-blog-posts'
     | '/sitemap/xml'
+    | '/guides'
+    | '/admin/ads'
+    | '/admin/operations'
     | '/blogger/callback'
+    | '/admin'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/about'
     | '/auth'
+    | '/contact'
+    | '/guides'
+    | '/help'
+    | '/privacy'
+    | '/terms'
     | '/_authenticated/admin'
     | '/_authenticated/articles'
     | '/_authenticated/dashboard'
     | '/_authenticated/queue'
     | '/_authenticated/settings'
+    | '/guides/ai-content-fact-checking'
+    | '/guides/blog-post-workflow'
+    | '/guides/blog-seo-checklist'
+    | '/guides/blogger-automation'
+    | '/guides/blogger-seo-settings'
+    | '/guides/content-calendar'
+    | '/guides/internal-linking-strategy'
+    | '/guides/review-ai-articles'
+    | '/guides/search-console-indexing'
+    | '/guides/seo-content-brief'
+    | '/guides/seo-content-plan'
+    | '/guides/update-old-blog-posts'
     | '/sitemap/xml'
+    | '/guides/'
+    | '/_authenticated/admin/ads'
+    | '/_authenticated/admin/operations'
     | '/_authenticated/blogger/callback'
+    | '/_authenticated/admin/'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   fileRoutesById: FileRoutesById
@@ -171,7 +437,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRoute
+  ContactRoute: typeof ContactRoute
+  GuidesRoute: typeof GuidesRouteWithChildren
+  HelpRoute: typeof HelpRoute
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
   SitemapXmlRoute: typeof SitemapXmlRoute
   ApiPublicCronAutopilotRoute: typeof ApiPublicCronAutopilotRoute
   ApiPublicPostImagePostIdRoute: typeof ApiPublicPostImagePostIdRoute
@@ -193,11 +465,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guides': {
+      id: '/guides'
+      path: '/guides'
+      fullPath: '/guides'
+      preLoaderRoute: typeof GuidesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -235,12 +549,124 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/guides/': {
+      id: '/guides/'
+      path: '/'
+      fullPath: '/guides/'
+      preLoaderRoute: typeof GuidesIndexRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/ai-content-fact-checking': {
+      id: '/guides/ai-content-fact-checking'
+      path: '/ai-content-fact-checking'
+      fullPath: '/guides/ai-content-fact-checking'
+      preLoaderRoute: typeof GuidesAiContentFactCheckingRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/blog-post-workflow': {
+      id: '/guides/blog-post-workflow'
+      path: '/blog-post-workflow'
+      fullPath: '/guides/blog-post-workflow'
+      preLoaderRoute: typeof GuidesBlogPostWorkflowRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/blog-seo-checklist': {
+      id: '/guides/blog-seo-checklist'
+      path: '/blog-seo-checklist'
+      fullPath: '/guides/blog-seo-checklist'
+      preLoaderRoute: typeof GuidesBlogSeoChecklistRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/blogger-automation': {
+      id: '/guides/blogger-automation'
+      path: '/blogger-automation'
+      fullPath: '/guides/blogger-automation'
+      preLoaderRoute: typeof GuidesBloggerAutomationRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/blogger-seo-settings': {
+      id: '/guides/blogger-seo-settings'
+      path: '/blogger-seo-settings'
+      fullPath: '/guides/blogger-seo-settings'
+      preLoaderRoute: typeof GuidesBloggerSeoSettingsRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/content-calendar': {
+      id: '/guides/content-calendar'
+      path: '/content-calendar'
+      fullPath: '/guides/content-calendar'
+      preLoaderRoute: typeof GuidesContentCalendarRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/internal-linking-strategy': {
+      id: '/guides/internal-linking-strategy'
+      path: '/internal-linking-strategy'
+      fullPath: '/guides/internal-linking-strategy'
+      preLoaderRoute: typeof GuidesInternalLinkingStrategyRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/review-ai-articles': {
+      id: '/guides/review-ai-articles'
+      path: '/review-ai-articles'
+      fullPath: '/guides/review-ai-articles'
+      preLoaderRoute: typeof GuidesReviewAiArticlesRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/search-console-indexing': {
+      id: '/guides/search-console-indexing'
+      path: '/search-console-indexing'
+      fullPath: '/guides/search-console-indexing'
+      preLoaderRoute: typeof GuidesSearchConsoleIndexingRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/seo-content-brief': {
+      id: '/guides/seo-content-brief'
+      path: '/seo-content-brief'
+      fullPath: '/guides/seo-content-brief'
+      preLoaderRoute: typeof GuidesSeoContentBriefRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/seo-content-plan': {
+      id: '/guides/seo-content-plan'
+      path: '/seo-content-plan'
+      fullPath: '/guides/seo-content-plan'
+      preLoaderRoute: typeof GuidesSeoContentPlanRouteImport
+      parentRoute: typeof GuidesRoute
+    }
+    '/guides/update-old-blog-posts': {
+      id: '/guides/update-old-blog-posts'
+      path: '/update-old-blog-posts'
+      fullPath: '/guides/update-old-blog-posts'
+      preLoaderRoute: typeof GuidesUpdateOldBlogPostsRouteImport
+      parentRoute: typeof GuidesRoute
+    }
     '/sitemap/xml': {
       id: '/sitemap/xml'
       path: '/sitemap/xml'
       fullPath: '/sitemap/xml'
       preLoaderRoute: typeof SitemapXmlRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ads': {
+      id: '/_authenticated/admin/ads'
+      path: '/ads'
+      fullPath: '/admin/ads'
+      preLoaderRoute: typeof AuthenticatedAdminAdsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/operations': {
+      id: '/_authenticated/admin/operations'
+      path: '/operations'
+      fullPath: '/admin/operations'
+      preLoaderRoute: typeof AuthenticatedAdminOperationsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/blogger/callback': {
       id: '/_authenticated/blogger/callback'
@@ -266,8 +692,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAdsRoute: typeof AuthenticatedAdminAdsRoute
+  AuthenticatedAdminOperationsRoute: typeof AuthenticatedAdminOperationsRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAdsRoute: AuthenticatedAdminAdsRoute,
+  AuthenticatedAdminOperationsRoute: AuthenticatedAdminOperationsRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedArticlesRoute: typeof AuthenticatedArticlesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedQueueRoute: typeof AuthenticatedQueueRoute
@@ -276,7 +717,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedArticlesRoute: AuthenticatedArticlesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedQueueRoute: AuthenticatedQueueRoute,
@@ -287,10 +728,51 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface GuidesRouteChildren {
+  GuidesAiContentFactCheckingRoute: typeof GuidesAiContentFactCheckingRoute
+  GuidesBlogPostWorkflowRoute: typeof GuidesBlogPostWorkflowRoute
+  GuidesBlogSeoChecklistRoute: typeof GuidesBlogSeoChecklistRoute
+  GuidesBloggerAutomationRoute: typeof GuidesBloggerAutomationRoute
+  GuidesBloggerSeoSettingsRoute: typeof GuidesBloggerSeoSettingsRoute
+  GuidesContentCalendarRoute: typeof GuidesContentCalendarRoute
+  GuidesInternalLinkingStrategyRoute: typeof GuidesInternalLinkingStrategyRoute
+  GuidesReviewAiArticlesRoute: typeof GuidesReviewAiArticlesRoute
+  GuidesSearchConsoleIndexingRoute: typeof GuidesSearchConsoleIndexingRoute
+  GuidesSeoContentBriefRoute: typeof GuidesSeoContentBriefRoute
+  GuidesSeoContentPlanRoute: typeof GuidesSeoContentPlanRoute
+  GuidesUpdateOldBlogPostsRoute: typeof GuidesUpdateOldBlogPostsRoute
+  GuidesIndexRoute: typeof GuidesIndexRoute
+}
+
+const GuidesRouteChildren: GuidesRouteChildren = {
+  GuidesAiContentFactCheckingRoute: GuidesAiContentFactCheckingRoute,
+  GuidesBlogPostWorkflowRoute: GuidesBlogPostWorkflowRoute,
+  GuidesBlogSeoChecklistRoute: GuidesBlogSeoChecklistRoute,
+  GuidesBloggerAutomationRoute: GuidesBloggerAutomationRoute,
+  GuidesBloggerSeoSettingsRoute: GuidesBloggerSeoSettingsRoute,
+  GuidesContentCalendarRoute: GuidesContentCalendarRoute,
+  GuidesInternalLinkingStrategyRoute: GuidesInternalLinkingStrategyRoute,
+  GuidesReviewAiArticlesRoute: GuidesReviewAiArticlesRoute,
+  GuidesSearchConsoleIndexingRoute: GuidesSearchConsoleIndexingRoute,
+  GuidesSeoContentBriefRoute: GuidesSeoContentBriefRoute,
+  GuidesSeoContentPlanRoute: GuidesSeoContentPlanRoute,
+  GuidesUpdateOldBlogPostsRoute: GuidesUpdateOldBlogPostsRoute,
+  GuidesIndexRoute: GuidesIndexRoute,
+}
+
+const GuidesRouteWithChildren =
+  GuidesRoute._addFileChildren(GuidesRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AboutRoute: AboutRoute,
   AuthRoute: AuthRoute,
+  ContactRoute: ContactRoute,
+  GuidesRoute: GuidesRouteWithChildren,
+  HelpRoute: HelpRoute,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
   SitemapXmlRoute: SitemapXmlRoute,
   ApiPublicCronAutopilotRoute: ApiPublicCronAutopilotRoute,
   ApiPublicPostImagePostIdRoute: ApiPublicPostImagePostIdRoute,

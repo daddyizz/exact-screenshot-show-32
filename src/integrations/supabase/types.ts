@@ -14,6 +14,102 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          event_type: string
+          id: string
+          message: string | null
+          metadata: Json
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type?: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      autopilot_runs: {
+        Row: {
+          blog_id: string | null
+          created_at: string
+          detail: string | null
+          finished_at: string
+          id: string
+          post_id: string | null
+          published_url: string | null
+          started_at: string
+          status: string
+          trigger_source: string
+          user_id: string | null
+        }
+        Insert: {
+          blog_id?: string | null
+          created_at?: string
+          detail?: string | null
+          finished_at?: string
+          id?: string
+          post_id?: string | null
+          published_url?: string | null
+          started_at?: string
+          status: string
+          trigger_source?: string
+          user_id?: string | null
+        }
+        Update: {
+          blog_id?: string | null
+          created_at?: string
+          detail?: string | null
+          finished_at?: string
+          id?: string
+          post_id?: string | null
+          published_url?: string | null
+          started_at?: string
+          status?: string
+          trigger_source?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_runs_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_runs_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blogger_connections: {
         Row: {
           access_token: string | null
