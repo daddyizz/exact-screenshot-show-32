@@ -79,6 +79,7 @@ export function DiagnosticReporter() {
     const onClick = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target.closest("button,a,[role='button']") : null;
       if (!target) return;
+      if (target.closest("[data-diagnostic-ignore='true']")) return;
       if (target instanceof HTMLButtonElement && target.disabled) return;
       const beforeMutation = mutationVersion;
       const beforePath = window.location.href;
