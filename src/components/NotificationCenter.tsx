@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-export function NotificationCenter({ userId }: { userId?: string }) {
+export function NotificationCenter({ userId }: { userId?: string | undefined }) {
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ["notifications", userId], enabled: Boolean(userId), refetchInterval: 60000,

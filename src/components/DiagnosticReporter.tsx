@@ -22,7 +22,7 @@ export function DiagnosticReporter() {
       const previous = lastSent.current.get(key) ?? 0;
       if (now - previous < 5000) return;
       lastSent.current.set(key, now);
-      void reportFn({ data: payload }).catch(() => undefined);
+      void reportFn(payload).catch(() => undefined);
     };
 
     const base = () => ({
