@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getOperationsDashboard, retryAutopilotRun } from "@/lib/operations.functions";
+import { probeAiActivityLogging } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/operations")({ head: () => ({ meta: [{ title: "Operations — BlogPilot AI Admin" }] }), component: OperationsPage });
 function StatusBadge({ value }: { value: string }) { return <Badge variant={value === "operational" ? "default" : "secondary"}>{value === "operational" ? "Operational" : "Attention"}</Badge>; }
@@ -68,14 +69,15 @@ function buildDiagnosticReport(data: any) {
 }
 
 function OperationsPage() {
-  const getOps = useServerFn(getOperationsDashboard); const retryFn = useServerFn(retryAutopilotRun);
+  const getOps = useServerFn(getOperationsDashboard); const retryFn = useServerFn(retryAutopilotRun); const probeAiFn = useServerFn(probeAiActivityLogging);
   const query = useQuery({ queryKey: ["admin-operations"], queryFn: () => getOps(), refetchInterval: 60000 }); const data = query.data;
   const retry = useMutation({ mutationFn: (runId: string) => retryFn({ data: { runId, origin: window.location.origin } }), onSuccess: (outcome) => { toast.success(`Retry finished: ${outcome.status}`); void query.refetch(); }, onError: (e: Error) => toast.error(e.message) });
+  const probeAi = useMutation({ mutationFn: () => probeAiFn(), onSuccess: async (outcome) => { toast.success(`AI logging probe passed (${outcome.version})`); await query.refetch(); }, onError: (e: Error) => toast.error(e.message) });
   const copyReport = async () => { if (!data) return; await navigator.clipboard.writeText(buildDiagnosticReport(data)); toast.success("Diagnostic report copied"); };
   if (query.isLoading) return <p className="text-sm text-muted-foreground">Loading operations…</p>;
   if (query.error) return <div className="surface-panel p-6"><h1 className="text-xl font-semibold">Operations unavailable</h1><p className="mt-2 text-sm text-destructive">{(query.error as Error).message}</p></div>; if (!data) return null;
   const health = [["Database", data.health.database, Database], ["Image storage", data.health.storage, HardDrive], ["Blogger", data.health.blogger, Radio], ["Autopilot", data.health.autopilot, Bot], ["Website", data.health.website, Globe2]] as const;
-  return <div className="space-y-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-eyebrow">Admin operations</p><h1 className="mt-1 text-3xl font-bold">System health & diagnostics</h1><p className="mt-2 text-sm text-muted-foreground">See failures, dead clicks, page/network errors and automation history in one place.</p></div><div className="flex flex-wrap gap-2"><Button data-diagnostic-ignore="true" variant="outline" onClick={copyReport}><ClipboardCopy aria-hidden />Copy full report</Button><Button variant="secondary" onClick={() => query.refetch()} disabled={query.isFetching}><RefreshCw className={query.isFetching ? "animate-spin" : ""} aria-hidden />Refresh</Button></div></div>
+  return <div className="space-y-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-eyebrow">Admin operations</p><h1 className="mt-1 text-3xl font-bold">System health & diagnostics</h1><p className="mt-2 text-sm text-muted-foreground">See failures, dead clicks, page/network errors and automation history in one place.</p></div><div className="flex flex-wrap gap-2"><Button data-diagnostic-ignore="true" variant="outline" onClick={copyReport}><ClipboardCopy aria-hidden />Copy full report</Button><Button data-diagnostic-ignore="true" variant="outline" onClick={() => probeAi.mutate()} disabled={probeAi.isPending}><Bot aria-hidden />{probeAi.isPending?"Testing AI log…":"Test AI log"}</Button><Button variant="secondary" onClick={() => query.refetch()} disabled={query.isFetching}><RefreshCw className={query.isFetching ? "animate-spin" : ""} aria-hidden />Refresh</Button></div></div>
   {!data.observabilityReady ? <div className="surface-panel border-amber-500/30 p-4 text-sm">Operations migration is not applied to this database yet. Health checks still work; activity and run history will start filling after the migration is applied.</div> : null}
   {!data.diagnosticsReady ? <div className="surface-panel border-amber-500/30 p-4 text-sm">Website diagnostics migration is not applied yet. Apply the latest database migration before expecting browser issue logs here.</div> : null}
   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{health.map(([label,value,Icon]) => <div key={label} className="surface-panel p-5"><div className="flex items-center justify-between gap-3"><Icon className="size-5 text-primary" aria-hidden /><StatusBadge value={value} /></div><p className="mt-4 text-sm font-semibold">{label}</p></div>)}</div>
