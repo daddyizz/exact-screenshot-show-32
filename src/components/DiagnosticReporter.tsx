@@ -16,7 +16,7 @@ export function DiagnosticReporter() {
   const lastSent = useRef(new Map<string, number>());
 
   useEffect(() => {
-    const send = (payload: Parameters<typeof reportFn>[0]["data"]) => {
+    const send = (payload: Parameters<typeof reportFn>[0]) => {
       const key = `${payload.eventType}|${payload.routePath}|${payload.message}|${payload.element}`;
       const now = Date.now();
       const previous = lastSent.current.get(key) ?? 0;

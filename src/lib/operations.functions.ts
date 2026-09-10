@@ -33,7 +33,7 @@ export const retryAutopilotRun = createServerFn({ method: "POST" })
     const startedAt = new Date().toISOString();
     const outcome = await runAutopilotForBlog(admin, blog, data.origin);
     await admin.from("blogs").update({ autopilot_last_run_at: new Date().toISOString() }).eq("id", blog.id);
-    await writeAutopilotRun(admin, { userId: run.user_id ?? blog.user_id, blogId: blog.id, postId: outcome.postId ?? null, triggerSource: "manual", status: outcome.status, detail: `Admin retry: ${outcome.detail}`, publishedUrl: outcome.url, startedAt });
+    await writeAutopilotRun(admin, { userId: run.user_id ?? blog.user_id, blogId: blog.id, postId: outcome.postId ?? null, triggerSource: "manual", status: outcome.status, detail: `Admin retry: ${outcome.detail}`, publishedUrl: outcome.url ?? null, startedAt });
     await writeActivity(admin, { userId: run.user_id ?? blog.user_id, actorUserId: context.userId, eventType: "autopilot.admin_retry", entityType: "blog", entityId: blog.id, status: outcome.status === "error" ? "failed" : "success", message: outcome.detail, metadata: { originalRunId: run.id, outcome: outcome.status } });
     if (outcome.status === "error") await createNotification(admin, { userId: run.user_id ?? blog.user_id, type: "autopilot.failed", title: "Autopilot needs attention", message: outcome.detail, severity: "error", actionUrl: "/dashboard", actionLabel: "Open dashboard", dedupeKey: `autopilot-failed:${blog.id}` });
     else await createNotification(admin, { userId: run.user_id ?? blog.user_id, type: "autopilot.recovered", title: "Autopilot recovered", message: `${blog.name}: ${outcome.detail}`, severity: "success", actionUrl: "/articles", actionLabel: "View content", dedupeKey: `autopilot-failed:${blog.id}` });
