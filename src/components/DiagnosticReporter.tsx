@@ -2,6 +2,18 @@ import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { recordWebsiteDiagnostic } from "@/lib/diagnostics.functions";
 
+type DiagnosticPayload = {
+  severity: "info" | "warning" | "error";
+  eventType: string;
+  pageUrl?: string | undefined;
+  routePath?: string | undefined;
+  message?: string | undefined;
+  stack?: string | undefined;
+  element?: string | undefined;
+  metadata?: Record<string, any> | undefined;
+  userAgent?: string | undefined;
+};
+
 function describeElement(target: EventTarget | null) {
   if (!(target instanceof Element)) return undefined;
   const el = target.closest("button,a,[role='button'],input,select,textarea") ?? target;
