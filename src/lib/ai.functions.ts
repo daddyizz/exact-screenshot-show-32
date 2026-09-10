@@ -169,3 +169,19 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
       throw error;
     }
   });
+
+export const probeAiActivityLogging = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    await writeActivity(admin, {
+      userId: context.userId,
+      eventType: "ai.logging_probe",
+      entityType: "system",
+      status: "success",
+      message: "AI activity logging probe succeeded",
+      metadata: { version: "ai-log-v1", quotaUsed: false, providerCalled: false },
+    });
+    return { ok: true, version: "ai-log-v1" };
+  });
