@@ -28,6 +28,7 @@ import {
 import { generateTopics } from "@/lib/ai.functions";
 import { runAutopilotNow, runDueAutopilot, updateAutopilot } from "@/lib/autopilot.functions";
 import { createBlog as createBlogServer } from "@/lib/blogs.functions";
+import { getMyPlanUsage } from "@/lib/account.functions";
 import { Switch } from "@/components/ui/switch";
 import { AdSlot } from "@/components/AdSlot";
 import { PlanUsageCard } from "@/components/PlanUsageCard";
@@ -54,6 +55,7 @@ function Dashboard() {
   const queryClient = useQueryClient();
   const generateTopicsFn = useServerFn(generateTopics);
   const createBlogFn = useServerFn(createBlogServer);
+  const getPlanUsageFn = useServerFn(getMyPlanUsage);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -85,6 +87,11 @@ function Dashboard() {
     },
   });
 
+  const planUsage = useQuery({
+    queryKey: ["my-plan-usage"],
+    queryFn: () => getPlanUsageFn(),
+  });
+
   const createBlog = useMutation({
     mutationFn: async () =>
       createBlogFn({
@@ -106,6 +113,22 @@ function Dashboard() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const handleAddBlogOpenChange = (nextOpen: boolean) => {
+    if (
+      nextOpen &&
+      planUsage.data &&
+      planUsage.data.blogCount >= planUsage.data.blogLimit
+    ) {
+      toast.error(
+        planUsage.data.plan === "pro"
+          ? "Pro plan supports up to 5 blogs."
+          : "Free plan supports 1 blog. Upgrade to Pro to add more blogs.",
+      );
+      return;
+    }
+    setOpen(nextOpen);
+  };
 
   const autopilotFn = useServerFn(updateAutopilot);
   const runNowFn = useServerFn(runAutopilotNow);
@@ -185,7 +208,7 @@ function Dashboard() {
               Connect Blogger
             </Link>
           </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={handleAddBlogOpenChange}>
             <DialogTrigger asChild>
               <Button>
                 <Plus aria-hidden />
