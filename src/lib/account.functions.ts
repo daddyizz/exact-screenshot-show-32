@@ -12,6 +12,70 @@ function isMissingSchema(error: any) {
   );
 }
 
+function stripePeriodEnd(object: any) {
+  const raw = object?.current_period_end
+    ?? object?.items?.data?.[0]?.current_period_end
+    ?? object?.cancel_at
+    ?? null;
+  return raw ? new Date(Number(raw) * 1000).toISOString() : null;
+}
+
+async function refreshStripeSubscription(admin: any, row: any, userId: string) {
+  if (row?.billing_provider !== "stripe" || !row?.provider_subscription_id || !process.env.STRIPE_SECRET_KEY) return row;
+
+  try {
+    const response = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(row.provider_subscription_id)}`, {
+      headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
+    });
+    if (!response.ok) return row;
+
+    const stripe = await response.json();
+    const status = ["active", "trialing", "past_due", "canceled"].includes(stripe?.status)
+      ? stripe.status
+      : ["unpaid", "paused", "incomplete", "incomplete_expired"].includes(stripe?.status)
+        ? "suspended"
+        : row.status;
+    const plan = ["active", "trialing", "past_due"].includes(status) ? "pro" : "free";
+    const currentPeriodEnd = stripePeriodEnd(stripe) ?? row.current_period_end ?? null;
+    // Some Stripe cancellation flows expose a concrete cancel_at timestamp instead of
+    // relying only on cancel_at_period_end. Treat either as a scheduled cancellation.
+    const cancelAtPeriodEnd = Boolean(stripe?.cancel_at_period_end || stripe?.cancel_at);
+
+    const changed = row.plan !== plan
+      || row.status !== status
+      || row.current_period_end !== currentPeriodEnd
+      || Boolean(row.cancel_at_period_end) !== cancelAtPeriodEnd;
+
+    if (changed) {
+      const updated = {
+        ...row,
+        plan,
+        status,
+        current_period_end: currentPeriodEnd,
+        cancel_at_period_end: cancelAtPeriodEnd,
+      };
+      const { error } = await admin.from("user_subscriptions").update({
+        plan,
+        status,
+        current_period_end: currentPeriodEnd,
+        cancel_at_period_end: cancelAtPeriodEnd,
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", userId);
+      if (!error) return updated;
+    }
+
+    return {
+      ...row,
+      plan,
+      status,
+      current_period_end: currentPeriodEnd,
+      cancel_at_period_end: cancelAtPeriodEnd,
+    };
+  } catch {
+    return row;
+  }
+}
+
 export const getMyPlanUsage = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -34,13 +98,18 @@ export const getMyPlanUsage = createServerFn({ method: "GET" })
     let dbStatus: string | null = null;
     const subscription = await admin
       .from("user_subscriptions")
-      .select("plan,status,billing_provider,current_period_end,cancel_at_period_end")
+      .select("plan,status,billing_provider,provider_subscription_id,current_period_end,cancel_at_period_end")
       .eq("user_id", context.userId)
       .maybeSingle();
     if (subscription.error && !isMissingSchema(subscription.error)) throw new Error(subscription.error.message);
-    if (!subscription.error && subscription.data) {
-      dbPlan = subscription.data.plan;
-      dbStatus = subscription.data.status;
+
+    const subscriptionData = !subscription.error && subscription.data
+      ? await refreshStripeSubscription(admin, subscription.data, context.userId)
+      : null;
+
+    if (subscriptionData) {
+      dbPlan = subscriptionData.plan;
+      dbStatus = subscriptionData.status;
     }
 
     const app = user.app_metadata ?? {};
@@ -100,8 +169,8 @@ export const getMyPlanUsage = createServerFn({ method: "GET" })
       autopilotRuns,
       autopilotEnabled: plan === "pro",
       aiImagesEnabled: plan === "pro",
-      billingProvider: subscription.data?.billing_provider ?? "manual",
-      currentPeriodEnd: subscription.data?.current_period_end ?? null,
-      cancelAtPeriodEnd: Boolean(subscription.data?.cancel_at_period_end),
+      billingProvider: subscriptionData?.billing_provider ?? "manual",
+      currentPeriodEnd: subscriptionData?.current_period_end ?? null,
+      cancelAtPeriodEnd: Boolean(subscriptionData?.cancel_at_period_end),
     };
   });
