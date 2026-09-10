@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { bloggerOAuthConfig, bloggerRedirectUri, buildAuthUrl, createBloggerPost, exchangeCode, listBlogs, markdownToHtml, refreshAccessToken, tokenExpiry, updateBloggerPost } from "./blogger.server";
+import { bloggerOAuthConfig, bloggerRedirectUri, buildAuthUrl, createBloggerPost, exchangeCode, isBloggerNotFound, listBlogs, markdownToHtml, refreshAccessToken, tokenExpiry, updateBloggerPost } from "./blogger.server";
 import { createNotification } from "./notifications.server";
 
 async function notifyReconnect(admin: any, userId: string, blogId: string, message: string) {
@@ -33,7 +33,7 @@ async function refreshConnection(admin: any, connection: any, userId: string, bl
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { accessToken: refreshed.access_token, expiresAt };
-  } catch (error) {
+  } catch {
     await notifyReconnect(admin, userId, blogId, "Google rejected the saved Blogger authorization. Reconnect Blogger to continue publishing.");
     throw new Error("Blogger authorization is no longer valid. Reconnect the blog.");
   }
@@ -79,10 +79,26 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
   if (expired) accessToken = (await refreshConnection(admin, connection, userId, post.blog_id)).accessToken;
   const imageHtml = post.image_url && data.origin ? `<p><img src="${data.origin}${post.image_url}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n` : "";
   const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(post.body), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
-  const published = post.blogger_post_id ? await updateBloggerPost(accessToken, connection.blogger_blog_id, post.blogger_post_id, input) : await createBloggerPost(accessToken, connection.blogger_blog_id, input);
+
+  const hadExistingPost = Boolean(post.blogger_post_id);
+  let recoveredMissingPost = false;
+  let published: { id: string; url: string };
+
+  if (post.blogger_post_id) {
+    try {
+      published = await updateBloggerPost(accessToken, connection.blogger_blog_id, post.blogger_post_id, input);
+    } catch (error) {
+      if (!isBloggerNotFound(error)) throw error;
+      published = await createBloggerPost(accessToken, connection.blogger_blog_id, input);
+      recoveredMissingPost = true;
+    }
+  } else {
+    published = await createBloggerPost(accessToken, connection.blogger_blog_id, input);
+  }
+
   const { error } = await supabase.from("posts").update({ status: "published", published_at: new Date().toISOString(), blogger_post_id: published.id, blogger_url: published.url }).eq("id", data.postId); if (error) throw new Error(error.message);
-  await createNotification(admin, { userId, type: "blogger.published", title: post.blogger_post_id ? "Article republished" : "Article published", message: post.title, severity: "success", actionUrl: "/articles", actionLabel: "View articles" });
-  return { url: published.url, republished: Boolean(post.blogger_post_id) };
+  await createNotification(admin, { userId, type: recoveredMissingPost ? "blogger.recovered" : "blogger.published", title: recoveredMissingPost ? "Blogger post restored" : hadExistingPost ? "Article republished" : "Article published", message: recoveredMissingPost ? `${post.title} was missing from Blogger, so BlogPilot created a replacement post.` : post.title, severity: "success", actionUrl: "/articles", actionLabel: "View articles" });
+  return { url: published.url, republished: hadExistingPost && !recoveredMissingPost, recoveredMissingPost };
 });
 
 export const getBloggerStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ blogId: z.string().uuid() }).parse(data)).handler(async ({ data, context }) => {
