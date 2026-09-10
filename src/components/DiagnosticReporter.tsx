@@ -23,6 +23,22 @@ function describeElement(target: EventTarget | null) {
   return `${tag}${id}${text ? ` "${text}"` : ""}`;
 }
 
+function shouldIgnoreDeadClick(target: Element) {
+  if (target.closest("[data-diagnostic-ignore='true']")) return true;
+  if (target.getAttribute("role") === "tab" || target.closest("[role='tab']")) return true;
+  const anchor = target.closest("a") as HTMLAnchorElement | null;
+  if (anchor) {
+    if (anchor.target === "_blank" || anchor.hasAttribute("download")) return true;
+    try {
+      const href = new URL(anchor.href, window.location.href);
+      if (href.origin !== window.location.origin) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function DiagnosticReporter() {
   const reportFn = useServerFn(recordWebsiteDiagnostic) as unknown as (args: { data: DiagnosticPayload }) => Promise<unknown>;
   const lastSent = useRef(new Map<string, number>());
@@ -77,9 +93,9 @@ export function DiagnosticReporter() {
     observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
 
     const onClick = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target.closest("button,a,[role='button']") : null;
+      const target = event.target instanceof Element ? event.target.closest("button,a,[role='button'],[role='tab']") : null;
       if (!target) return;
-      if (target.closest("[data-diagnostic-ignore='true']")) return;
+      if (shouldIgnoreDeadClick(target)) return;
       if (target instanceof HTMLButtonElement && target.disabled) return;
       const beforeMutation = mutationVersion;
       const beforePath = window.location.href;
