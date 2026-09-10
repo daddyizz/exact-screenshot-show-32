@@ -11,18 +11,30 @@ function describeElement(target: EventTarget | null) {
   return `${tag}${id}${text ? ` "${text}"` : ""}`;
 }
 
+type DiagnosticPayload = {
+  severity: "info" | "warning" | "error";
+  eventType: string;
+  pageUrl?: string;
+  routePath?: string;
+  message?: string;
+  stack?: string;
+  element?: string;
+  metadata?: Record<string, any>;
+  userAgent?: string;
+};
+
 export function DiagnosticReporter() {
-  const reportFn = useServerFn(recordWebsiteDiagnostic);
+  const reportFn = useServerFn(recordWebsiteDiagnostic) as unknown as (args: { data: DiagnosticPayload }) => Promise<unknown>;
   const lastSent = useRef(new Map<string, number>());
 
   useEffect(() => {
-    const send = (payload: Parameters<typeof reportFn>[0]) => {
+    const send = (payload: DiagnosticPayload) => {
       const key = `${payload.eventType}|${payload.routePath}|${payload.message}|${payload.element}`;
       const now = Date.now();
       const previous = lastSent.current.get(key) ?? 0;
       if (now - previous < 5000) return;
       lastSent.current.set(key, now);
-      void reportFn(payload).catch(() => undefined);
+      void reportFn({ data: payload }).catch(() => undefined);
     };
 
     const base = () => ({
