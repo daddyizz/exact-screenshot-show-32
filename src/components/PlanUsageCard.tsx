@@ -1,15 +1,31 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Crown, Gauge, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { getMyPlanUsage } from "@/lib/account.functions";
+import { createStripeCheckout, createStripePortal } from "@/lib/billing.functions";
 
 export function PlanUsageCard() {
   const planFn = useServerFn(getMyPlanUsage);
+  const checkoutFn = useServerFn(createStripeCheckout);
+  const portalFn = useServerFn(createStripePortal);
   const plan = useQuery({
     queryKey: ["my-plan-usage"],
     queryFn: () => planFn(),
     retry: false,
+  });
+
+  const checkout = useMutation({
+    mutationFn: () => checkoutFn({ data: { origin: window.location.origin } }),
+    onSuccess: ({ url }) => { window.location.href = url; },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const portal = useMutation({
+    mutationFn: () => portalFn({ data: { origin: window.location.origin } }),
+    onSuccess: ({ url }) => { window.location.href = url; },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   if (plan.isLoading) {
@@ -28,6 +44,7 @@ export function PlanUsageCard() {
   const data = plan.data;
   const pro = data.plan === "pro";
   const draftText = data.aiDraftLimit == null ? `${data.aiDrafts} drafts` : `${data.aiDrafts} / ${data.aiDraftLimit} drafts`;
+  const stripeManaged = data.billingProvider === "stripe";
 
   return (
     <div className="surface-panel p-5">
@@ -41,6 +58,17 @@ export function PlanUsageCard() {
             <Badge variant={pro ? "default" : "secondary"}>{pro ? "PRO" : "FREE"}</Badge>
             <Badge variant="outline" className="capitalize">{data.status}</Badge>
             {data.isAdmin ? <Badge variant="outline">ADMIN</Badge> : null}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {!pro ? (
+              <Button onClick={() => checkout.mutate()} disabled={checkout.isPending}>
+                {checkout.isPending ? "Opening checkout…" : "Upgrade to Pro — RM49/month"}
+              </Button>
+            ) : stripeManaged ? (
+              <Button variant="outline" onClick={() => portal.mutate()} disabled={portal.isPending}>
+                {portal.isPending ? "Opening billing…" : "Manage billing"}
+              </Button>
+            ) : null}
           </div>
         </div>
         <div className="text-right">
