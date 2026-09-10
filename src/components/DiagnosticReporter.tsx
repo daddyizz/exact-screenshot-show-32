@@ -2,6 +2,18 @@ import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { recordWebsiteDiagnostic } from "@/lib/diagnostics.functions";
 
+type DiagnosticPayload = {
+  severity: "info" | "warning" | "error";
+  eventType: string;
+  pageUrl?: string | undefined;
+  routePath?: string | undefined;
+  message?: string | undefined;
+  stack?: string | undefined;
+  element?: string | undefined;
+  metadata?: Record<string, any> | undefined;
+  userAgent?: string | undefined;
+};
+
 function describeElement(target: EventTarget | null) {
   if (!(target instanceof Element)) return undefined;
   const el = target.closest("button,a,[role='button'],input,select,textarea") ?? target;
@@ -12,11 +24,11 @@ function describeElement(target: EventTarget | null) {
 }
 
 export function DiagnosticReporter() {
-  const reportFn = useServerFn(recordWebsiteDiagnostic);
+  const reportFn = useServerFn(recordWebsiteDiagnostic) as unknown as (args: { data: DiagnosticPayload }) => Promise<unknown>;
   const lastSent = useRef(new Map<string, number>());
 
   useEffect(() => {
-    const send = (payload: Parameters<typeof reportFn>[0]["data"]) => {
+    const send = (payload: DiagnosticPayload) => {
       const key = `${payload.eventType}|${payload.routePath}|${payload.message}|${payload.element}`;
       const now = Date.now();
       const previous = lastSent.current.get(key) ?? 0;
