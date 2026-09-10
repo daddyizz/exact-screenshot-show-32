@@ -2,6 +2,19 @@ export const BLOGGER_SCOPE = "https://www.googleapis.com/auth/blogger";
 
 type Creds = { clientId: string; clientSecret: string };
 
+type BloggerApiError = Error & { status?: number };
+
+function bloggerApiError(message: string, status: number): BloggerApiError {
+  const error = new Error(message) as BloggerApiError;
+  error.name = "BloggerApiError";
+  error.status = status;
+  return error;
+}
+
+export function isBloggerNotFound(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "status" in error && (error as BloggerApiError).status === 404);
+}
+
 export function googleCreds(): Creds {
   const clientId = process.env["GOOGLE_OAUTH_CLIENT_ID"];
   const clientSecret = process.env["GOOGLE_OAUTH_CLIENT_SECRET"];
@@ -116,8 +129,10 @@ export async function createBloggerPost(
       }),
     },
   );
-  if (!response.ok)
-    throw new Error(`Blogger rejected the post: ${(await response.text()).slice(0, 200)}`);
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 200);
+    throw bloggerApiError(`Blogger rejected the post: ${detail}`, response.status);
+  }
   const payload = (await response.json()) as { id: string; url: string };
   return { id: payload.id, url: payload.url };
 }
@@ -145,8 +160,10 @@ export async function updateBloggerPost(
       }),
     },
   );
-  if (!response.ok)
-    throw new Error(`Blogger rejected the update: ${(await response.text()).slice(0, 200)}`);
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 200);
+    throw bloggerApiError(`Blogger rejected the update: ${detail}`, response.status);
+  }
   const payload = (await response.json()) as { id: string; url: string };
   return { id: payload.id, url: payload.url };
 }
