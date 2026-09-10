@@ -7,6 +7,17 @@ import { Button } from "@/components/ui/button";
 import { getMyPlanUsage } from "@/lib/account.functions";
 import { createStripeCheckout, createStripePortal } from "@/lib/billing.functions";
 
+function formatBillingDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
 export function PlanUsageCard() {
   const planFn = useServerFn(getMyPlanUsage);
   const checkoutFn = useServerFn(createStripeCheckout);
@@ -45,6 +56,7 @@ export function PlanUsageCard() {
   const pro = data.plan === "pro";
   const draftText = data.aiDraftLimit == null ? `${data.aiDrafts} drafts` : `${data.aiDrafts} / ${data.aiDraftLimit} drafts`;
   const stripeManaged = data.billingProvider === "stripe";
+  const billingEndDate = formatBillingDate(data.currentPeriodEnd);
 
   return (
     <div className="surface-panel p-5">
@@ -57,8 +69,15 @@ export function PlanUsageCard() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Badge variant={pro ? "default" : "secondary"}>{pro ? "PRO" : "FREE"}</Badge>
             <Badge variant="outline" className="capitalize">{data.status}</Badge>
+            {data.cancelAtPeriodEnd ? <Badge variant="outline">Cancellation scheduled</Badge> : null}
             {data.isAdmin ? <Badge variant="outline">ADMIN</Badge> : null}
           </div>
+          {data.cancelAtPeriodEnd ? (
+            <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">
+              <p className="font-medium">Your Pro plan is scheduled to end{billingEndDate ? ` on ${billingEndDate}` : " at the end of the current billing period"}.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Pro features remain active until then. You can renew anytime from Manage billing.</p>
+            </div>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             {!pro ? (
               <Button onClick={() => checkout.mutate()} disabled={checkout.isPending}>
