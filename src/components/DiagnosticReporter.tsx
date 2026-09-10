@@ -23,18 +23,6 @@ function describeElement(target: EventTarget | null) {
   return `${tag}${id}${text ? ` "${text}"` : ""}`;
 }
 
-type DiagnosticPayload = {
-  severity: "info" | "warning" | "error";
-  eventType: string;
-  pageUrl?: string;
-  routePath?: string;
-  message?: string;
-  stack?: string;
-  element?: string;
-  metadata?: Record<string, any>;
-  userAgent?: string;
-};
-
 export function DiagnosticReporter() {
   const reportFn = useServerFn(recordWebsiteDiagnostic) as unknown as (args: { data: DiagnosticPayload }) => Promise<unknown>;
   const lastSent = useRef(new Map<string, number>());
