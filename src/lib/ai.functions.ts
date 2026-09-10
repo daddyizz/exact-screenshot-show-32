@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { blogContext, chatComplete, extractJson, generateImage, slugifyServer } from "./ai.server";
+import { writeActivity } from "./operations.server";
 
 function missingUsageRpc(error: any) {
   const message = String(error?.message ?? error ?? "").toLowerCase();
@@ -10,12 +11,7 @@ function missingUsageRpc(error: any) {
 
 function missingEntitlementSchema(error: any) {
   const message = String(error?.message ?? error ?? "").toLowerCase();
-  return (
-    message.includes("user_subscriptions") ||
-    message.includes("schema cache") ||
-    message.includes("does not exist") ||
-    message.includes("could not find the table")
-  );
+  return message.includes("user_subscriptions") || message.includes("schema cache") || message.includes("does not exist") || message.includes("could not find the table");
 }
 
 async function consumeUsage(kind: "draft" | "image", userId: string) {
@@ -25,65 +21,38 @@ async function consumeUsage(kind: "draft" | "image", userId: string) {
   if (userResult.error) throw new Error(userResult.error.message);
   const user = userResult.data?.user;
   if (!user) throw new Error("User not found");
-
   const app = user.app_metadata ?? {};
 
   let dbPlan: string | null = null;
   let dbStatus: string | null = null;
-  const subscription = await admin
-    .from("user_subscriptions")
-    .select("plan,status")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (subscription.error && !missingEntitlementSchema(subscription.error)) {
-    throw new Error(subscription.error.message);
-  }
-  if (!subscription.error && subscription.data) {
-    dbPlan = subscription.data.plan;
-    dbStatus = subscription.data.status;
-  }
+  const subscription = await admin.from("user_subscriptions").select("plan,status").eq("user_id", userId).maybeSingle();
+  if (subscription.error && !missingEntitlementSchema(subscription.error)) throw new Error(subscription.error.message);
+  if (!subscription.error && subscription.data) { dbPlan = subscription.data.plan; dbStatus = subscription.data.status; }
 
   const roleResult = await admin.from("user_roles").select("role").eq("user_id", userId);
   if (roleResult.error) throw new Error(roleResult.error.message);
   const isAdmin = (roleResult.data ?? []).some((row: any) => row.role === "admin");
 
-  const metadataPlan = app.blogpilot_plan === "pro" || app.blogpilot_plan === "free"
-    ? app.blogpilot_plan
-    : null;
-  const metadataStatus = ["active", "trialing", "past_due", "canceled", "suspended"].includes(app.blogpilot_subscription_status)
-    ? app.blogpilot_subscription_status
-    : null;
+  const metadataPlan = app.blogpilot_plan === "pro" || app.blogpilot_plan === "free" ? app.blogpilot_plan : null;
+  const metadataStatus = ["active", "trialing", "past_due", "canceled", "suspended"].includes(app.blogpilot_subscription_status) ? app.blogpilot_subscription_status : null;
   const rawPlan = dbPlan ?? metadataPlan ?? (isAdmin ? "pro" : "free");
   const status = dbStatus ?? metadataStatus ?? "active";
   const entitled = rawPlan === "pro" && ["active", "trialing"].includes(status);
 
-  if (kind === "image" && !entitled) {
-    throw new Error("AI cover images are available on the Pro plan.");
-  }
+  if (kind === "image" && !entitled) throw new Error("AI cover images are available on the Pro plan.");
 
   const fn = kind === "draft" ? "consume_ai_draft_usage" : "consume_ai_image_usage";
   const rpc = await admin.rpc(fn, { p_user_id: userId });
   if (!rpc.error) return { storage: "database" as const };
   if (!missingUsageRpc(rpc.error)) throw new Error(rpc.error.message);
 
-  // Legacy database fallback: keep monthly counters in auth app_metadata.
   const month = new Date().toISOString().slice(0, 7);
   const usageMonth = app.blogpilot_usage_month === month ? month : null;
   const drafts = usageMonth ? Number(app.blogpilot_ai_drafts ?? 0) : 0;
   const images = usageMonth ? Number(app.blogpilot_ai_images ?? 0) : 0;
+  if (kind === "draft" && !entitled && drafts >= 5) throw new Error("Free plan limit reached: 5 AI drafts per month. Upgrade to Pro for unlimited drafts.");
 
-  if (kind === "draft" && !entitled && drafts >= 5) {
-    throw new Error("Free plan limit reached: 5 AI drafts per month. Upgrade to Pro for unlimited drafts.");
-  }
-
-  const updated = await admin.auth.admin.updateUserById(userId, {
-    app_metadata: {
-      ...app,
-      blogpilot_usage_month: month,
-      blogpilot_ai_drafts: kind === "draft" ? drafts + 1 : drafts,
-      blogpilot_ai_images: kind === "image" ? images + 1 : images,
-    },
-  });
+  const updated = await admin.auth.admin.updateUserById(userId, { app_metadata: { ...app, blogpilot_usage_month: month, blogpilot_ai_drafts: kind === "draft" ? drafts + 1 : drafts, blogpilot_ai_images: kind === "image" ? images + 1 : images } });
   if (updated.error) throw new Error(updated.error.message);
   return { storage: "metadata" as const };
 }
@@ -91,105 +60,56 @@ async function consumeUsage(kind: "draft" | "image", userId: string) {
 async function refundUsage(kind: "draft" | "image", userId: string, storage: "database" | "metadata") {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
-
   if (storage === "database") {
     const fn = kind === "draft" ? "refund_ai_draft_usage" : "refund_ai_image_usage";
     const refund = await admin.rpc(fn, { p_user_id: userId });
     if (!refund.error) return;
-    if (!missingUsageRpc(refund.error)) {
-      console.error("AI usage refund failed", refund.error);
-      return;
-    }
+    if (!missingUsageRpc(refund.error)) { console.error("AI usage refund failed", refund.error); return; }
   }
 
-  // Legacy fallback, and fallback when the refund RPC has not been migrated yet.
   const userResult = await admin.auth.admin.getUserById(userId);
-  if (userResult.error || !userResult.data?.user) {
-    if (userResult.error) console.error("AI metadata refund lookup failed", userResult.error);
-    return;
-  }
-
+  if (userResult.error || !userResult.data?.user) { if (userResult.error) console.error("AI metadata refund lookup failed", userResult.error); return; }
   const user = userResult.data.user;
   const app = user.app_metadata ?? {};
   const month = new Date().toISOString().slice(0, 7);
   if (app.blogpilot_usage_month !== month) return;
-
   const drafts = Math.max(Number(app.blogpilot_ai_drafts ?? 0) - (kind === "draft" ? 1 : 0), 0);
   const images = Math.max(Number(app.blogpilot_ai_images ?? 0) - (kind === "image" ? 1 : 0), 0);
-  const updated = await admin.auth.admin.updateUserById(userId, {
-    app_metadata: {
-      ...app,
-      blogpilot_ai_drafts: drafts,
-      blogpilot_ai_images: images,
-    },
-  });
+  const updated = await admin.auth.admin.updateUserById(userId, { app_metadata: { ...app, blogpilot_ai_drafts: drafts, blogpilot_ai_images: images } });
   if (updated.error) console.error("AI metadata refund failed", updated.error);
 }
 
 export const generateTopics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
-    z.object({ blogId: z.string().uuid(), count: z.number().min(1).max(10).default(5) }).parse(data),
-  )
+  .inputValidator((data) => z.object({ blogId: z.string().uuid(), count: z.number().min(1).max(10).default(5) }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-
-    const { data: blog, error: blogError } = await supabase
-      .from("blogs")
-      .select("*")
-      .eq("id", data.blogId)
-      .maybeSingle();
+    const { data: blog, error: blogError } = await supabase.from("blogs").select("*").eq("id", data.blogId).maybeSingle();
     if (blogError) throw new Error(blogError.message);
     if (!blog) throw new Error("Blog not found");
-
-    const { data: existing } = await supabase
-      .from("posts")
-      .select("title")
-      .eq("blog_id", data.blogId)
-      .limit(100);
+    const { data: existing } = await supabase.from("posts").select("title").eq("blog_id", data.blogId).limit(100);
     const taken = (existing ?? []).map((p) => p.title);
-
-    const raw = await chatComplete([
-      {
-        role: "system",
-        content: "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences.",
-      },
-      {
-        role: "user",
-        content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}`,
-      },
-    ]);
-
-    const ideas = extractJson<
-      Array<{
-        title: string;
-        outline?: string;
-        seo_title?: string;
-        meta_description?: string;
-        keywords?: string;
-      }>
-    >(raw);
-
-    const lowerTaken = new Set(taken.map((t) => t.trim().toLowerCase()));
-    const rows = ideas
-      .filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase()))
-      .map((idea) => ({
-        user_id: userId,
-        blog_id: data.blogId,
-        title: idea.title.trim(),
-        slug: slugifyServer(idea.title),
-        outline: idea.outline ?? null,
-        seo_title: idea.seo_title ?? null,
-        meta_description: idea.meta_description ?? null,
-        keywords: idea.keywords ?? null,
-        status: "idea",
-      }));
-
-    if (rows.length === 0) return { inserted: 0 };
-
-    const { error } = await supabase.from("posts").insert(rows);
-    if (error) throw new Error(error.message);
-    return { inserted: rows.length };
+    const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
+    try {
+      const raw = await chatComplete([
+        { role: "system", content: "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences." },
+        { role: "user", content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}` },
+      ]);
+      const ideas = extractJson<Array<{ title: string; outline?: string; seo_title?: string; meta_description?: string; keywords?: string }>>(raw);
+      const lowerTaken = new Set(taken.map((t) => t.trim().toLowerCase()));
+      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({ user_id: userId, blog_id: data.blogId, title: idea.title.trim(), slug: slugifyServer(idea.title), outline: idea.outline ?? null, seo_title: idea.seo_title ?? null, meta_description: idea.meta_description ?? null, keywords: idea.keywords ?? null, status: "idea" }));
+      if (rows.length === 0) {
+        await writeActivity(admin,{userId,eventType:"ai.topics_generated",entityType:"blog",entityId:data.blogId,status:"info",message:"AI topic planning completed with no new topics",metadata:{requested:data.count,inserted:0}});
+        return { inserted: 0 };
+      }
+      const { error } = await supabase.from("posts").insert(rows);
+      if (error) throw new Error(error.message);
+      await writeActivity(admin,{userId,eventType:"ai.topics_generated",entityType:"blog",entityId:data.blogId,message:`AI added ${rows.length} topic${rows.length===1?"":"s"}`,metadata:{requested:data.count,inserted:rows.length}});
+      return { inserted: rows.length };
+    } catch (error:any) {
+      await writeActivity(admin,{userId,eventType:"ai.topics_failed",entityType:"blog",entityId:data.blogId,status:"failed",message:"AI topic planning failed",metadata:{error:String(error?.message??error).slice(0,500)}});
+      throw error;
+    }
   });
 
 export const generateArticle = createServerFn({ method: "POST" })
@@ -197,51 +117,25 @@ export const generateArticle = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .select("*, blogs(*)")
-      .eq("id", data.postId)
-      .maybeSingle();
+    const { data: post, error: postError } = await supabase.from("posts").select("*, blogs(*)").eq("id", data.postId).maybeSingle();
     if (postError) throw new Error(postError.message);
     if (!post || !post.blogs) throw new Error("Post not found");
-
+    const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
     const reservation = await consumeUsage("draft", userId);
     try {
       const blog = post.blogs;
       const raw = await chatComplete([
-        {
-          role: "system",
-          content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences.",
-        },
-        {
-          role: "user",
-          content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
-        },
+        { role: "system", content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences." },
+        { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}` },
       ]);
-
-      const article = extractJson<{
-        body: string;
-        seo_title?: string;
-        meta_description?: string;
-        keywords?: string;
-      }>(raw);
-
-      const { error } = await supabase
-        .from("posts")
-        .update({
-          body: article.body,
-          seo_title: article.seo_title ?? post.seo_title,
-          meta_description: article.meta_description ?? post.meta_description,
-          keywords: article.keywords ?? post.keywords,
-          status: "drafted",
-        })
-        .eq("id", data.postId);
+      const article = extractJson<{ body: string; seo_title?: string; meta_description?: string; keywords?: string }>(raw);
+      const { error } = await supabase.from("posts").update({ body: article.body, seo_title: article.seo_title ?? post.seo_title, meta_description: article.meta_description ?? post.meta_description, keywords: article.keywords ?? post.keywords, status: "drafted" }).eq("id", data.postId);
       if (error) throw new Error(error.message);
-
+      await writeActivity(admin,{userId,eventType:post.body?"ai.article_rewritten":"ai.article_generated",entityType:"post",entityId:data.postId,message:post.body?"AI article rewritten":"AI article generated",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage}});
       return { ok: true };
-    } catch (error) {
+    } catch (error:any) {
       await refundUsage("draft", userId, reservation.storage);
+      await writeActivity(admin,{userId,eventType:"ai.article_failed",entityType:"post",entityId:data.postId,status:"failed",message:"AI article generation failed; usage refunded",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage,error:String(error?.message??error).slice(0,500)}});
       throw error;
     }
   });
@@ -251,45 +145,27 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .select("id, title, keywords, blogs(name, niche)")
-      .eq("id", data.postId)
-      .maybeSingle();
+    const { data: post, error: postError } = await supabase.from("posts").select("id, title, keywords, blog_id, image_url, blogs(name, niche)").eq("id", data.postId).maybeSingle();
     if (postError) throw new Error(postError.message);
     if (!post || !post.blogs) throw new Error("Post not found");
-
+    const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
     const reservation = await consumeUsage("image", userId);
     try {
-      const prompt = [
-        `Create a clean, eye-catching blog featured image (16:9) for an article titled "${post.title}".`,
-        `Blog: ${post.blogs.name}. Niche: ${post.blogs.niche}.`,
-        post.keywords ? `Related keywords: ${post.keywords}.` : null,
-        "Style: modern editorial illustration, no text, no watermarks.",
-      ].filter(Boolean).join(" ");
-
+      const prompt = [`Create a clean, eye-catching blog featured image (16:9) for an article titled "${post.title}".`, `Blog: ${post.blogs.name}. Niche: ${post.blogs.niche}.`, post.keywords ? `Related keywords: ${post.keywords}.` : null, "Style: modern editorial illustration, no text, no watermarks."].filter(Boolean).join(" ");
       const dataUrl = await generateImage(prompt);
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-
-      const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin;
       const path = `${data.postId}.png`;
-      const { error: uploadError } = await admin.storage
-        .from("post-images")
-        .upload(path, bytes, { contentType: "image/png", upsert: true });
+      const { error: uploadError } = await admin.storage.from("post-images").upload(path, bytes, { contentType: "image/png", upsert: true });
       if (uploadError) throw new Error(uploadError.message);
-
       const imageUrl = `/api/public/post-image/${data.postId}`;
-      const { error } = await supabase
-        .from("posts")
-        .update({ image_url: imageUrl })
-        .eq("id", data.postId);
+      const { error } = await supabase.from("posts").update({ image_url: imageUrl }).eq("id", data.postId);
       if (error) throw new Error(error.message);
-
+      await writeActivity(admin,{userId,eventType:post.image_url?"ai.image_regenerated":"ai.image_generated",entityType:"post",entityId:data.postId,message:post.image_url?"AI featured image regenerated":"AI featured image generated",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage}});
       return { imageUrl };
-    } catch (error) {
+    } catch (error:any) {
       await refundUsage("image", userId, reservation.storage);
+      await writeActivity(admin,{userId,eventType:"ai.image_failed",entityType:"post",entityId:data.postId,status:"failed",message:"AI featured image generation failed; usage refunded",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage,error:String(error?.message??error).slice(0,500)}});
       throw error;
     }
   });
