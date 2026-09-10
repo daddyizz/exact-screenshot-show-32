@@ -36,6 +36,36 @@ function normalizeStripeStatus(status: string | null | undefined) {
   return "active" as const;
 }
 
+async function stripeGet(path: string) {
+  const secretKey = getEnv("STRIPE_SECRET_KEY");
+  const response = await fetch(`https://api.stripe.com${path}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
+  if (!response.ok) throw new Error(`Stripe retrieve failed (${response.status})`);
+  return response.json();
+}
+
+async function canonicalSubscriptionObject(eventType: string, object: any) {
+  if (!eventType.startsWith("customer.subscription.")) return object;
+  const subscriptionId = typeof object?.id === "string" && object.id.startsWith("sub_") ? object.id : null;
+  if (!subscriptionId) return object;
+
+  try {
+    return await stripeGet(`/v1/subscriptions/${encodeURIComponent(subscriptionId)}`);
+  } catch (error) {
+    console.warn("Stripe canonical subscription lookup failed; using webhook snapshot", error);
+    return object;
+  }
+}
+
+function getPeriodEnd(object: any) {
+  const raw = object?.current_period_end
+    ?? object?.items?.data?.[0]?.current_period_end
+    ?? object?.cancel_at
+    ?? null;
+  return raw ? new Date(Number(raw) * 1000).toISOString() : null;
+}
+
 async function resolveUserId(admin: any, object: any) {
   const direct = object?.metadata?.blogpilot_user_id || object?.client_reference_id;
   if (direct) return String(direct);
@@ -55,7 +85,8 @@ async function resolveUserId(admin: any, object: any) {
   return null;
 }
 
-async function syncEntitlement(admin: any, eventType: string, object: any) {
+async function syncEntitlement(admin: any, eventType: string, rawObject: any) {
+  const object = await canonicalSubscriptionObject(eventType, rawObject);
   const userId = await resolveUserId(admin, object);
   if (!userId) return { handled: false, reason: "user_not_found" };
 
@@ -67,10 +98,10 @@ async function syncEntitlement(admin: any, eventType: string, object: any) {
   const subscriptionId = isCheckout
     ? (typeof object?.subscription === "string" ? object.subscription : null)
     : (typeof object?.id === "string" && object.id.startsWith("sub_") ? object.id : null);
-  const periodEnd = object?.current_period_end ? new Date(Number(object.current_period_end) * 1000).toISOString() : null;
+  const periodEnd = getPeriodEnd(object);
   const cancelAtPeriodEnd = Boolean(object?.cancel_at_period_end);
 
-  const existing = await admin.from("user_subscriptions").select("provider_customer_id,provider_subscription_id").eq("user_id", userId).maybeSingle();
+  const existing = await admin.from("user_subscriptions").select("provider_customer_id,provider_subscription_id,current_period_end,cancel_at_period_end").eq("user_id", userId).maybeSingle();
   if (existing.error) throw new Error(existing.error.message);
 
   const { error } = await admin.from("user_subscriptions").upsert({
@@ -80,8 +111,8 @@ async function syncEntitlement(admin: any, eventType: string, object: any) {
     billing_provider: "stripe",
     provider_customer_id: customerId ?? existing.data?.provider_customer_id ?? null,
     provider_subscription_id: subscriptionId ?? existing.data?.provider_subscription_id ?? null,
-    current_period_end: periodEnd,
-    cancel_at_period_end: cancelAtPeriodEnd,
+    current_period_end: periodEnd ?? existing.data?.current_period_end ?? null,
+    cancel_at_period_end: isCheckout ? (existing.data?.cancel_at_period_end ?? false) : cancelAtPeriodEnd,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (error) throw new Error(error.message);
@@ -122,7 +153,7 @@ async function syncEntitlement(admin: any, eventType: string, object: any) {
     message: eventType === "checkout.session.completed"
       ? "Stripe Checkout completed"
       : `Stripe subscription status: ${status}`,
-    metadata: { stripeEventType: eventType, plan, status, cancelAtPeriodEnd },
+    metadata: { stripeEventType: eventType, plan, status, cancelAtPeriodEnd, currentPeriodEnd: periodEnd },
   });
 
   if (eventType === "checkout.session.completed") {
