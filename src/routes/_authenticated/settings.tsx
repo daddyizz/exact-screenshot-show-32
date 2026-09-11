@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
       {
         name: "description",
         content:
-          "Update your BlogPilot AI profile, per-blog niche, tone, language and publishing cadence.",
+          "Update your BlogPilot AI profile, per-blog niche, tone, language, AI image style and publishing cadence.",
       },
       { property: "og:title", content: "Settings — BlogPilot AI" },
       {
@@ -55,6 +54,9 @@ function SettingsPage() {
   const disconnectFn = useServerFn(disconnectBlogger);
   const [displayName, setDisplayName] = useState("");
   const [blogId, setBlogId] = useState<string>("");
+
+  const googleAvatar = (user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture ?? null) as string | null;
+  const googleName = (user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? "") as string;
 
   const profileQuery = useQuery({
     queryKey: ["profile", user?.id],
@@ -84,11 +86,22 @@ function SettingsPage() {
   });
 
   useEffect(() => {
-    if (profileQuery.data?.display_name) setDisplayName(profileQuery.data.display_name);
-  }, [profileQuery.data?.display_name]);
+    if (!user || profileQuery.isLoading) return;
+    const savedName = profileQuery.data?.display_name ?? googleName;
+    setDisplayName(savedName ?? "");
+
+    if (googleAvatar && profileQuery.data?.avatar_url !== googleAvatar) {
+      void supabase.from("profiles").upsert({
+        id: user.id,
+        display_name: profileQuery.data?.display_name ?? (googleName || null),
+        avatar_url: googleAvatar,
+      }, { onConflict: "id" });
+    }
+  }, [user, profileQuery.isLoading, profileQuery.data?.display_name, profileQuery.data?.avatar_url, googleAvatar, googleName]);
 
   const blogs = blogsQuery.data ?? [];
   const selected = blogs.find((b) => b.id === blogId) ?? blogs[0];
+  const selectedAny = selected as any;
 
   useEffect(() => {
     if (!blogId && blogs[0]) setBlogId(blogs[0].id);
@@ -96,28 +109,33 @@ function SettingsPage() {
 
   const saveProfile = useMutation({
     mutationFn: async () => {
+      if (!user) throw new Error("User not found");
+      const value = displayName.trim();
+      if (!value) throw new Error("Writer name is required.");
       const { error } = await supabase
         .from("profiles")
-        .update({ display_name: displayName.trim() || null })
-        .eq("id", user!.id);
+        .upsert({ id: user.id, display_name: value, avatar_url: googleAvatar }, { onConflict: "id" });
       if (error) throw error;
+      return value;
     },
-    onSuccess: () => {
-      toast.success("Profile updated");
-      void queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
+    onSuccess: async (savedName) => {
+      setDisplayName(savedName);
+      toast.success("Writer name saved");
+      await queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const saveBlog = useMutation({
-    mutationFn: async (patch: Database["public"]["Tables"]["blogs"]["Update"]) => {
+    mutationFn: async (patch: Record<string, unknown>) => {
       if (!selected) return;
-      const { error } = await supabase.from("blogs").update(patch).eq("id", selected.id);
+      const { error } = await supabase.from("blogs").update(patch as any).eq("id", selected.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Blog settings saved");
-      void queryClient.invalidateQueries({ queryKey: ["blogs", user?.id] });
+      await queryClient.invalidateQueries({ queryKey: ["blogs", user?.id] });
+      await queryClient.invalidateQueries({ queryKey: ["blogs"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -154,36 +172,38 @@ function SettingsPage() {
     <div className="space-y-8">
       <header>
         <p className="text-eyebrow">Settings</p>
-        <h1 className="font-display mt-1 text-2xl font-bold tracking-tight">
-          Workspace preferences
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your account details and the automation defaults used for every generated post.
-        </p>
+        <h1 className="font-display mt-1 text-2xl font-bold tracking-tight">Workspace preferences</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Your account details and the automation defaults used for every generated post.</p>
       </header>
 
       <section className="surface-panel space-y-4 p-5">
         <div>
           <h2 className="font-display text-lg font-semibold">Profile</h2>
-          <p className="text-sm text-muted-foreground">How you appear inside BlogPilot AI.</p>
+          <p className="text-sm text-muted-foreground">Your saved writer identity inside BlogPilot AI.</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="display-name">Display name</Label>
-            <Input
-              id="display-name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your name"
-            />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+            {googleAvatar || profileQuery.data?.avatar_url ? (
+              <img src={googleAvatar ?? profileQuery.data?.avatar_url ?? ""} alt="Google profile" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="text-xl font-semibold">{(displayName || user?.email || "U").charAt(0).toUpperCase()}</span>
+            )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" value={user?.email ?? ""} readOnly disabled />
+          <div className="grid flex-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="display-name">Writer name</Label>
+              <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
+              <p className="text-xs text-muted-foreground">This value stays visible after saving so you can confirm exactly which name is stored.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" value={user?.email ?? ""} readOnly disabled />
+              <p className="text-xs text-muted-foreground">Profile photo is synced from your Google account when available.</p>
+            </div>
           </div>
         </div>
-        <Button onClick={() => saveProfile.mutate()} disabled={saveProfile.isPending}>
-          {saveProfile.isPending ? "Saving…" : "Save profile"}
+        <Button onClick={() => saveProfile.mutate()} disabled={saveProfile.isPending || !displayName.trim()}>
+          {saveProfile.isPending ? "Saving…" : "Save writer profile"}
         </Button>
       </section>
 
@@ -191,30 +211,18 @@ function SettingsPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold">Blog automation defaults</h2>
-            <p className="text-sm text-muted-foreground">
-              Applied whenever BlogPilot plans or drafts content for a blog.
-            </p>
+            <p className="text-sm text-muted-foreground">Applied whenever BlogPilot plans, drafts, creates images or publishes content for a blog.</p>
           </div>
           {blogs.length > 1 && (
             <Select value={selected?.id ?? ""} onValueChange={setBlogId}>
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="Choose blog" />
-              </SelectTrigger>
-              <SelectContent>
-                {blogs.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              <SelectTrigger className="w-56"><SelectValue placeholder="Choose blog" /></SelectTrigger>
+              <SelectContent>{blogs.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
         </div>
 
         {!selected ? (
-          <p className="text-sm text-muted-foreground">
-            Create a blog on the overview page to configure automation defaults.
-          </p>
+          <p className="text-sm text-muted-foreground">Create a blog on the overview page to configure automation defaults.</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -257,10 +265,64 @@ function SettingsPage() {
               <Label htmlFor="kw">Keyword focus</Label>
               <Textarea id="kw" rows={3} defaultValue={selected.keyword_focus ?? ""} placeholder="Comma-separated seed keywords, e.g. budget travel malaysia, cheap flights kl" onBlur={(e) => saveBlog.mutate({ keyword_focus: e.target.value.trim() || null })} />
             </div>
+
+            <div className="rounded-lg border border-border p-4 sm:col-span-2">
+              <div className="mb-4 flex items-start gap-3">
+                <ImageIcon className="mt-0.5 size-5 text-primary" aria-hidden />
+                <div>
+                  <p className="text-sm font-semibold">AI featured image</p>
+                  <p className="text-xs text-muted-foreground">Autopilot always creates an AI image before an article can publish.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Image ratio</Label>
+                  <Select value={selectedAny.ai_image_aspect_ratio ?? "16:9"} onValueChange={(v) => saveBlog.mutate({ ai_image_aspect_ratio: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="16:9">16:9 — Widescreen</SelectItem>
+                      <SelectItem value="4:3">4:3 — Standard</SelectItem>
+                      <SelectItem value="1:1">1:1 — Square</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Image style</Label>
+                  <Select value={selectedAny.ai_image_style ?? "auto"} onValueChange={(v) => saveBlog.mutate({ ai_image_style: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto</SelectItem>
+                      <SelectItem value="realistic">Realistic</SelectItem>
+                      <SelectItem value="2d">2D</SelectItem>
+                      <SelectItem value="3d">3D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(selectedAny.ai_image_aspect_ratio ?? "16:9") === "custom" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-width">Custom width</Label>
+                      <Input id="custom-width" type="number" min={320} max={4096} defaultValue={selectedAny.ai_image_custom_width ?? 1200} onBlur={(e) => saveBlog.mutate({ ai_image_custom_width: Math.min(4096, Math.max(320, Number(e.target.value) || 1200)) })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-height">Custom height</Label>
+                      <Input id="custom-height" type="number" min={320} max={4096} defaultValue={selectedAny.ai_image_custom_height ?? 630} onBlur={(e) => saveBlog.mutate({ ai_image_custom_height: Math.min(4096, Math.max(320, Number(e.target.value) || 630)) })} />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border p-4 sm:col-span-2">
+              <p className="text-sm font-medium">SEO meta search description</p>
+              <p className="mt-1 text-sm text-muted-foreground">AI suggests this automatically for every generated topic/article and BlogPilot enforces a maximum of 150 characters.</p>
+            </div>
+
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-4 sm:col-span-2">
               <div>
                 <p className="text-sm font-medium">Autopilot publishing</p>
-                <p className="text-sm text-muted-foreground">Automatically draft and publish on your cadence. Fine-tune and run it from Overview.</p>
+                <p className="text-sm text-muted-foreground">Automatically draft, create the required AI image and publish on your cadence. Review settings before every manual run.</p>
               </div>
               <Switch checked={Boolean(selected.autopilot)} onCheckedChange={(checked) => saveBlog.mutate({ autopilot: checked })} aria-label="Autopilot publishing" />
             </div>
@@ -269,12 +331,8 @@ function SettingsPage() {
       </section>
 
       <section className="surface-panel space-y-4 p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-display text-lg font-semibold">Integrations</h2>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Connect Blogger to publish approved drafts straight to your site.
-        </p>
+        <div className="flex flex-wrap items-center gap-3"><h2 className="font-display text-lg font-semibold">Integrations</h2></div>
+        <p className="text-sm text-muted-foreground">Connect Blogger to publish approved drafts straight to your site.</p>
         {!selected ? (
           <p className="text-sm text-muted-foreground">Create a blog first.</p>
         ) : bloggerStatus.isLoading ? (
@@ -288,36 +346,24 @@ function SettingsPage() {
                   <div className="space-y-2">
                     <div>
                       <p className="font-medium">Blogger needs to be reconnected</p>
-                      <p className="text-sm text-muted-foreground">
-                        Google authorization expired or was revoked. Reconnect this blog before the next publish or Autopilot run.
-                      </p>
+                      <p className="text-sm text-muted-foreground">Google authorization expired or was revoked. Reconnect this blog before the next publish or Autopilot run.</p>
                     </div>
-                    <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-                      {connect.isPending ? "Opening Google…" : "Reconnect Blogger"}
-                    </Button>
+                    <Button onClick={() => connect.mutate()} disabled={connect.isPending}>{connect.isPending ? "Opening Google…" : "Reconnect Blogger"}</Button>
                   </div>
                 </div>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3">
                 <CheckCircle2 className="size-5 text-primary" aria-hidden />
-                <p className="text-sm">
-                  Connected to <span className="font-medium">{bloggerStatus.data.bloggerBlogName ?? "your Blogger account"}</span>
-                </p>
+                <p className="text-sm">Connected to <span className="font-medium">{bloggerStatus.data.bloggerBlogName ?? "your Blogger account"}</span></p>
               </div>
             )}
-            <Button variant="outline" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>
-              Disconnect
-            </Button>
+            <Button variant="outline" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>Disconnect</Button>
           </div>
         ) : (
-          <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-            {connect.isPending ? "Opening Google…" : "Connect Blogger"}
-          </Button>
+          <Button onClick={() => connect.mutate()} disabled={connect.isPending}>{connect.isPending ? "Opening Google…" : "Connect Blogger"}</Button>
         )}
-        <p className="pt-2 text-sm text-muted-foreground">
-          AI featured images are available per post in the content queue — click “AI image” on any article.
-        </p>
+        <p className="pt-2 text-sm text-muted-foreground">Manual AI images and Autopilot images use the ratio and style selected above.</p>
       </section>
     </div>
   );
