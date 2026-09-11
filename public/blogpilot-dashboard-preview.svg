@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="760" gradientUnits="userSpaceOnUse"><stop stop-color="#F8FAFC"/><stop offset="1" stop-color="#E2E8F0"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#22C55E"/><stop offset="1" stop-color="#14B8A6"/></linearGradient>
+    <filter id="shadow" x="-40" y="-40" width="1280" height="840" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="18" stdDeviation="28" flood-color="#0F172A" flood-opacity="0.12"/></filter>
+  </defs>
+  <rect width="1200" height="760" rx="36" fill="url(#bg)"/>
+  <circle cx="1020" cy="115" r="170" fill="#DCFCE7"/>
+  <circle cx="145" cy="650" r="180" fill="#CCFBF1"/>
+  <g filter="url(#shadow)">
+    <rect x="90" y="70" width="1020" height="620" rx="28" fill="#FFFFFF"/>
+    <rect x="90" y="70" width="1020" height="64" rx="28" fill="#0F172A"/>
+    <circle cx="130" cy="102" r="8" fill="#EF4444"/><circle cx="156" cy="102" r="8" fill="#F59E0B"/><circle cx="182" cy="102" r="8" fill="#22C55E"/>
+    <text x="226" y="109" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#F8FAFC">BlogPilot.AI</text>
+    <rect x="118" y="165" width="210" height="485" rx="18" fill="#F8FAFC"/>
+    <rect x="140" y="190" width="164" height="44" rx="12" fill="#DCFCE7"/>
+    <text x="160" y="218" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#166534">Overview</text>
+    <text x="160" y="274" font-family="Arial, sans-serif" font-size="14" fill="#475569">Content queue</text>
+    <text x="160" y="322" font-family="Arial, sans-serif" font-size="14" fill="#475569">Articles</text>
+    <text x="160" y="370" font-family="Arial, sans-serif" font-size="14" fill="#475569">Settings</text>
+    <rect x="365" y="165" width="710" height="124" rx="18" fill="#F8FAFC"/>
+    <text x="393" y="200" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#64748B">AUTOPILOT STATUS</text>
+    <text x="393" y="243" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#0F172A">Your blog is ready to publish</text>
+    <rect x="878" y="198" width="166" height="52" rx="14" fill="url(#accent)"/>
+    <text x="912" y="230" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">Run Autopilot</text>
+    <rect x="365" y="315" width="338" height="150" rx="18" fill="#F8FAFC"/>
+    <text x="392" y="350" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#64748B">NEXT ARTICLE</text>
+    <text x="392" y="390" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#0F172A">SEO topic + outline</text>
+    <rect x="392" y="414" width="240" height="12" rx="6" fill="#CBD5E1"/>
+    <rect x="392" y="438" width="180" height="12" rx="6" fill="#E2E8F0"/>
+    <rect x="729" y="315" width="346" height="150" rx="18" fill="#0F172A"/>
+    <text x="756" y="350" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#94A3B8">AI FEATURED IMAGE</text>
+    <rect x="756" y="372" width="292" height="68" rx="14" fill="url(#accent)" opacity="0.9"/>
+    <circle cx="792" cy="406" r="17" fill="#FFFFFF" fill-opacity="0.92"/>
+    <path d="M787 406l9-6v12l-9-6z" fill="#16A34A"/>
+    <text x="824" y="412" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">Image generated</text>
+    <rect x="365" y="492" width="710" height="158" rx="18" fill="#F8FAFC"/>
+    <text x="392" y="528" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#64748B">PUBLISHING PIPELINE</text>
+    <g font-family="Arial, sans-serif" font-size="14" font-weight="700">
+      <rect x="392" y="554" width="132" height="54" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/><text x="424" y="587" fill="#334155">Plan topic</text>
+      <path d="M536 581h54" stroke="#94A3B8" stroke-width="4" stroke-linecap="round"/><path d="M584 573l10 8-10 8" stroke="#94A3B8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="606" y="554" width="132" height="54" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/><text x="639" y="587" fill="#334155">Write article</text>
+      <path d="M750 581h54" stroke="#94A3B8" stroke-width="4" stroke-linecap="round"/><path d="M798 573l10 8-10 8" stroke="#94A3B8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="820" y="554" width="132" height="54" rx="14" fill="#DCFCE7" stroke="#86EFAC"/><text x="845" y="587" fill="#166534">Publish live</text>
+    </g>
+  </g>
+</svg>
