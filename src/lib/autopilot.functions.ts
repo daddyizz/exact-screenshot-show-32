@@ -67,12 +67,14 @@ export const runAutopilotNow = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!blog) throw new Error("Blog not found");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { runAutopilotForBlog } = await import("./autopilot.server");
+    const { runAutopilotForBlog, AUTOPILOT_LOCKED_DETAIL } = await import("./autopilot.server");
     const startedAt = new Date().toISOString();
     const outcome = await runAutopilotForBlog(supabaseAdmin, blog, data.origin);
-    await supabaseAdmin.from("blogs").update({ autopilot_last_run_at: new Date().toISOString() }).eq("id", blog.id);
+    if (outcome.detail !== AUTOPILOT_LOCKED_DETAIL) {
+      await supabaseAdmin.from("blogs").update({ autopilot_last_run_at: new Date().toISOString() }).eq("id", blog.id);
+    }
     await writeAutopilotRun(supabaseAdmin, { userId: context.userId, blogId: blog.id, postId: outcome.postId ?? null, triggerSource: "manual", status: outcome.status, detail: outcome.detail, publishedUrl: outcome.url ?? null, startedAt });
-    await writeActivity(supabaseAdmin, { userId: context.userId, actorUserId: context.userId, eventType: "autopilot.run", entityType: "blog", entityId: blog.id, status: outcome.status === "error" ? "failed" : "success", message: outcome.detail, metadata: { outcome: outcome.status } });
+    await writeActivity(supabaseAdmin, { userId: context.userId, actorUserId: context.userId, eventType: "autopilot.run", entityType: "blog", entityId: blog.id, status: outcome.status === "error" ? "failed" : outcome.status === "skipped" ? "info" : "success", message: outcome.detail, metadata: { outcome: outcome.status, locked: outcome.detail === AUTOPILOT_LOCKED_DETAIL } });
     if (outcome.status === "error") throw new Error(outcome.detail);
     return outcome;
   });
@@ -84,7 +86,7 @@ export const runDueAutopilot = createServerFn({ method: "POST" })
     if (!(await hasProEntitlement(context.userId))) return { ran: 0, results: [], skipped: "pro_required" as const };
     const { data: blogs, error } = await context.supabase.from("blogs").select("*").eq("autopilot", true);
     if (error) throw new Error(error.message);
-    const { isBlogDue, runAutopilotForBlog } = await import("./autopilot.server");
+    const { isBlogDue, runAutopilotForBlog, AUTOPILOT_LOCKED_DETAIL } = await import("./autopilot.server");
     const due = (blogs ?? []).filter(isBlogDue).slice(0, 2);
     if (due.length === 0) return { ran: 0, results: [] };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -93,7 +95,9 @@ export const runDueAutopilot = createServerFn({ method: "POST" })
       const startedAt = new Date().toISOString();
       const outcome = await runAutopilotForBlog(supabaseAdmin, blog, data.origin);
       results.push(outcome);
-      await supabaseAdmin.from("blogs").update({ autopilot_last_run_at: new Date().toISOString() }).eq("id", blog.id);
+      if (outcome.detail !== AUTOPILOT_LOCKED_DETAIL) {
+        await supabaseAdmin.from("blogs").update({ autopilot_last_run_at: new Date().toISOString() }).eq("id", blog.id);
+      }
       await writeAutopilotRun(supabaseAdmin, { userId: context.userId, blogId: blog.id, postId: outcome.postId ?? null, triggerSource: "dashboard", status: outcome.status, detail: outcome.detail, publishedUrl: outcome.url ?? null, startedAt });
     }
     return { ran: results.length, results };
