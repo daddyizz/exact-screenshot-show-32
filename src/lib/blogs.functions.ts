@@ -77,14 +77,15 @@ export const createBlog = createServerFn({ method: "POST" })
     const { count, error: countError } = await admin
       .from("blogs")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", context.userId);
+      .eq("user_id", context.userId)
+      .is("deleted_at", null);
     if (countError) throw new Error(countError.message);
 
     if ((count ?? 0) >= blogLimit) {
       throw new Error(
         plan === "pro"
-          ? "Your Pro plan supports up to 5 blogs. Remove an existing blog before adding another."
-          : "Your Free plan supports 1 blog. Upgrade to Pro to manage up to 5 blogs.",
+          ? "Your Pro plan supports up to 5 active blogs. Move an existing blog to Trash before adding another."
+          : "Your Free plan supports 1 active blog. Upgrade to Pro to manage up to 5 blogs.",
       );
     }
 
@@ -105,7 +106,7 @@ export const createBlog = createServerFn({ method: "POST" })
     if (error) {
       const message = String(error.message ?? "");
       if (message.toLowerCase().includes("blog") && message.toLowerCase().includes("limit")) {
-        throw new Error(plan === "pro" ? "Your Pro plan supports up to 5 blogs." : "Your Free plan supports 1 blog.");
+        throw new Error(plan === "pro" ? "Your Pro plan supports up to 5 active blogs." : "Your Free plan supports 1 active blog.");
       }
       throw new Error(message);
     }
