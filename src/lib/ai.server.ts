@@ -1,4 +1,5 @@
 import { PNG } from "pngjs";
+import * as jpeg from "jpeg-js";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
@@ -49,40 +50,72 @@ function inferTargetAspect(prompt: string): number | undefined {
   return undefined;
 }
 
-function cropPngToAspect(dataUrl: string, targetAspect?: number): string {
-  if (!targetAspect || !dataUrl.startsWith("data:image/png;base64,")) return dataUrl;
+function cropRgbaToAspect(data: Uint8Array, width: number, height: number, targetAspect: number) {
+  const sourceAspect = width / height;
+  if (Math.abs(sourceAspect - targetAspect) < 0.002) {
+    return { data: Buffer.from(data), width, height };
+  }
+
+  let cropWidth = width;
+  let cropHeight = height;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (sourceAspect > targetAspect) {
+    cropWidth = Math.max(1, Math.floor(height * targetAspect));
+    offsetX = Math.floor((width - cropWidth) / 2);
+  } else {
+    cropHeight = Math.max(1, Math.floor(width / targetAspect));
+    offsetY = Math.floor((height - cropHeight) / 2);
+  }
+
+  const source = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  const output = Buffer.alloc(cropWidth * cropHeight * 4);
+  for (let y = 0; y < cropHeight; y += 1) {
+    const sourceStart = ((offsetY + y) * width + offsetX) * 4;
+    const sourceEnd = sourceStart + cropWidth * 4;
+    const targetStart = y * cropWidth * 4;
+    source.copy(output, targetStart, sourceStart, sourceEnd);
+  }
+
+  return { data: output, width: cropWidth, height: cropHeight };
+}
+
+function normalizeGeneratedImageToPng(dataUrl: string, targetAspect?: number): string {
+  if (!targetAspect) return dataUrl;
 
   try {
-    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-    const source = PNG.sync.read(Buffer.from(base64, "base64"));
-    const sourceAspect = source.width / source.height;
-    if (Math.abs(sourceAspect - targetAspect) < 0.002) return dataUrl;
+    const comma = dataUrl.indexOf(",");
+    if (comma < 0) return dataUrl;
+    const mime = dataUrl.slice(5, dataUrl.indexOf(";", 5)).toLowerCase();
+    const bytes = Buffer.from(dataUrl.slice(comma + 1), "base64");
 
-    let cropWidth = source.width;
-    let cropHeight = source.height;
-    let offsetX = 0;
-    let offsetY = 0;
+    let rgba: Uint8Array;
+    let width: number;
+    let height: number;
 
-    if (sourceAspect > targetAspect) {
-      cropWidth = Math.max(1, Math.floor(source.height * targetAspect));
-      offsetX = Math.floor((source.width - cropWidth) / 2);
+    if (mime === "image/png") {
+      const decoded = PNG.sync.read(bytes);
+      rgba = decoded.data;
+      width = decoded.width;
+      height = decoded.height;
+    } else if (mime === "image/jpeg" || mime === "image/jpg") {
+      const decoded = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: true });
+      rgba = decoded.data;
+      width = decoded.width;
+      height = decoded.height;
     } else {
-      cropHeight = Math.max(1, Math.floor(source.width / targetAspect));
-      offsetY = Math.floor((source.height - cropHeight) / 2);
+      console.error(`Unsupported AI image mime type for ratio enforcement: ${mime}`);
+      return dataUrl;
     }
 
-    const output = new PNG({ width: cropWidth, height: cropHeight });
-    for (let y = 0; y < cropHeight; y += 1) {
-      const sourceStart = ((offsetY + y) * source.width + offsetX) * 4;
-      const sourceEnd = sourceStart + cropWidth * 4;
-      const targetStart = y * cropWidth * 4;
-      source.data.copy(output.data, targetStart, sourceStart, sourceEnd);
-    }
-
+    const cropped = cropRgbaToAspect(rgba, width, height, targetAspect);
+    const output = new PNG({ width: cropped.width, height: cropped.height });
+    cropped.data.copy(output.data);
     const encoded = PNG.sync.write(output);
     return `data:image/png;base64,${encoded.toString("base64")}`;
   } catch (error) {
-    console.error("AI image ratio crop failed; returning original image", error);
+    console.error("AI image ratio enforcement failed; returning original image", error);
     return dataUrl;
   }
 }
@@ -105,7 +138,7 @@ export async function generateImage(
   const targetAspect = explicitAspect ?? inferTargetAspect(prompt);
 
   // This gateway's chat/completions image-model route rejects response_format.
-  // Generate normally, then enforce BlogPilot's requested geometry locally.
+  // Generate normally, then enforce BlogPilot's requested geometry before storage.
   const response = await fetch(GATEWAY_URL, {
     method: "POST",
     headers: {
@@ -133,7 +166,7 @@ export async function generateImage(
   };
   const dataUrl = payload.choices?.[0]?.message?.images?.[0]?.image_url?.url;
   if (!dataUrl?.startsWith("data:image/")) throw new Error("The AI returned no image.");
-  return cropPngToAspect(dataUrl, targetAspect);
+  return normalizeGeneratedImageToPng(dataUrl, targetAspect);
 }
 
 function normalizeJsonControlCharacters(input: string) {
