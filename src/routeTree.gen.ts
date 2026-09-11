@@ -41,6 +41,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as AuthenticatedAdminOperationsRouteImport } from './routes/_authenticated/admin.operations'
 import { Route as AuthenticatedBloggerCallbackRouteImport } from './routes/_authenticated/blogger.callback'
+import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 import { Route as ApiPublicCronAutopilotRouteImport } from './routes/api/public/cron/autopilot'
 import { Route as ApiPublicPostImagePostIdRouteImport } from './routes/api/public/post-image/$postId'
 
@@ -210,6 +211,11 @@ const AuthenticatedBloggerCallbackRoute =
     path: '/blogger/callback',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
+  id: '/api/public/stripe-webhook',
+  path: '/api/public/stripe-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCronAutopilotRoute = ApiPublicCronAutopilotRouteImport.update({
   id: '/api/public/cron/autopilot',
   path: '/api/public/cron/autopilot',
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
@@ -323,6 +331,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/_authenticated/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
@@ -360,6 +369,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/operations'
     | '/blogger/callback'
+    | '/api/public/stripe-webhook'
     | '/admin/'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
@@ -393,6 +403,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/operations'
     | '/blogger/callback'
+    | '/api/public/stripe-webhook'
     | '/admin'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
@@ -429,6 +440,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/operations'
     | '/_authenticated/blogger/callback'
+    | '/api/public/stripe-webhook'
     | '/_authenticated/admin/'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
@@ -445,6 +457,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   SitemapXmlRoute: typeof SitemapXmlRoute
+  ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   ApiPublicCronAutopilotRoute: typeof ApiPublicCronAutopilotRoute
   ApiPublicPostImagePostIdRoute: typeof ApiPublicPostImagePostIdRoute
 }
@@ -675,6 +688,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBloggerCallbackRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/stripe-webhook': {
+      id: '/api/public/stripe-webhook'
+      path: '/api/public/stripe-webhook'
+      fullPath: '/api/public/stripe-webhook'
+      preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cron/autopilot': {
       id: '/api/public/cron/autopilot'
       path: '/api/public/cron/autopilot'
@@ -774,6 +794,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   SitemapXmlRoute: SitemapXmlRoute,
+  ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   ApiPublicCronAutopilotRoute: ApiPublicCronAutopilotRoute,
   ApiPublicPostImagePostIdRoute: ApiPublicPostImagePostIdRoute,
 }
