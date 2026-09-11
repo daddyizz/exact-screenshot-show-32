@@ -37,8 +37,6 @@ async function refreshStripeSubscription(admin: any, row: any, userId: string) {
         : row.status;
     const plan = ["active", "trialing", "past_due"].includes(status) ? "pro" : "free";
     const currentPeriodEnd = stripePeriodEnd(stripe) ?? row.current_period_end ?? null;
-    // Some Stripe cancellation flows expose a concrete cancel_at timestamp instead of
-    // relying only on cancel_at_period_end. Treat either as a scheduled cancellation.
     const cancelAtPeriodEnd = Boolean(stripe?.cancel_at_period_end || stripe?.cancel_at);
 
     const changed = row.plan !== plan
@@ -154,7 +152,8 @@ export const getMyPlanUsage = createServerFn({ method: "GET" })
     const { count: blogCount, error: blogError } = await admin
       .from("blogs")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", context.userId);
+      .eq("user_id", context.userId)
+      .is("deleted_at", null);
     if (blogError) throw new Error(blogError.message);
 
     return {
