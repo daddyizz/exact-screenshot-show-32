@@ -140,11 +140,20 @@ function SettingsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const planFn = useServerFn(getMyPlanUsage);
+  const planQuery = useQuery({
+    queryKey: ["my-plan-usage"],
+    queryFn: () => planFn(),
+    retry: false,
+  });
+  const isPro = planQuery.data?.plan === "pro";
+
   const bloggerStatus = useQuery({
     queryKey: ["blogger-status", selected?.id],
     enabled: !!selected,
     queryFn: () => bloggerStatusFn({ data: { blogId: selected!.id } }),
   });
+
 
   const connect = useMutation({
     mutationFn: async () => {
