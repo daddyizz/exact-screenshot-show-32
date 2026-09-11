@@ -34,6 +34,13 @@ export async function chatComplete(messages: ChatMessage[]): Promise<string> {
 
 export type ImageAspectRatio = "16:9" | "4:3" | "1:1";
 
+function inferImageAspectRatio(prompt: string): ImageAspectRatio | undefined {
+  if (/\b16\s*:\s*9\b/i.test(prompt)) return "16:9";
+  if (/\b4\s*:\s*3\b/i.test(prompt)) return "4:3";
+  if (/\b1\s*:\s*1\b/i.test(prompt) || /\bsquare\b/i.test(prompt)) return "1:1";
+  return undefined;
+}
+
 /** Generate an image via the AI gateway. Returns a base64 data URL. */
 export async function generateImage(
   prompt: string,
@@ -42,19 +49,19 @@ export async function generateImage(
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new Error("AI is not configured for this project yet.");
 
+  const requestedAspectRatio = options?.aspectRatio ?? inferImageAspectRatio(prompt);
   const body: Record<string, unknown> = {
     model: IMAGE_MODEL,
     messages: [{ role: "user", content: prompt }],
     modalities: ["image", "text"],
   };
 
-  // Do not rely on prompt wording alone for image geometry. Gemini image models
-  // support an explicit output aspect-ratio request, so pass it through the
-  // gateway for the preset ratios BlogPilot exposes.
-  if (options?.aspectRatio) {
+  // Prompt text is only a creative hint; it does not guarantee output geometry.
+  // Send the preset ratio as an explicit image-generation parameter as well.
+  if (requestedAspectRatio) {
     body.response_format = {
       type: "image",
-      aspect_ratio: options.aspectRatio,
+      aspect_ratio: requestedAspectRatio,
     };
   }
 
