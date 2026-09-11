@@ -1,4 +1,4 @@
-import { blogContext, chatCompleteJson, slugifyServer } from "./ai.server";
+import { blogContext, chatCompleteJson, generateImage, slugifyServer } from "./ai.server";
 import {
   createBloggerPost,
   markdownToHtml,
@@ -56,7 +56,72 @@ async function releaseRunLock(admin: Admin, blogId: string, token: string | null
   if (result.error && !missingLockRpc(result.error)) console.error("Autopilot lock release failed", result.error);
 }
 
-/** Runs one autopilot cycle for a single blog: pick/create a topic, write it, optionally publish. */
+function meta150(value?: string | null) {
+  const text = value?.trim();
+  if (!text) return null;
+  if (text.length <= 150) return text;
+  return `${text.slice(0, 147).trimEnd()}...`;
+}
+
+function imageAspectInstruction(blog: any) {
+  const ratio = blog.ai_image_aspect_ratio ?? "16:9";
+  if (ratio === "custom") {
+    const width = Number(blog.ai_image_custom_width ?? 0);
+    const height = Number(blog.ai_image_custom_height ?? 0);
+    if (width >= 320 && height >= 320) {
+      return `Use a ${width}x${height} canvas/composition (${width}:${height} aspect ratio).`;
+    }
+    return "Use a wide 16:9 landscape composition.";
+  }
+  if (ratio === "4:3") return "Use a 4:3 landscape composition.";
+  if (ratio === "1:1") return "Use a square 1:1 composition.";
+  return "Use a wide 16:9 landscape composition.";
+}
+
+function imageStyleInstruction(blog: any) {
+  switch (blog.ai_image_style ?? "auto") {
+    case "realistic":
+      return "Style: realistic, photorealistic editorial photography with natural lighting and believable detail.";
+    case "2d":
+      return "Style: polished 2D editorial illustration with clean shapes, depth and professional visual hierarchy.";
+    case "3d":
+      return "Style: premium 3D rendered editorial artwork with realistic materials, lighting and depth.";
+    default:
+      return "Style: automatically choose the most suitable professional visual treatment for the article topic.";
+  }
+}
+
+async function generateAndStoreAutopilotImage(admin: Admin, blog: any, post: any, keywords?: string | null) {
+  const prompt = [
+    `Create a professional, eye-catching featured image for the blog article titled "${post.title}".`,
+    `Blog: ${blog.name}. Niche: ${blog.niche}.`,
+    keywords ? `Related keywords: ${keywords}.` : null,
+    imageAspectInstruction(blog),
+    imageStyleInstruction(blog),
+    "No text, captions, logos, UI, borders or watermarks. Make the main subject immediately understandable on mobile and suitable for a professional blog cover.",
+  ].filter(Boolean).join(" ");
+
+  const dataUrl = await generateImage(prompt);
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) throw new Error("AI image data was invalid.");
+  const base64 = dataUrl.slice(comma + 1);
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const path = `${post.id}.png`;
+  const { error: uploadError } = await admin.storage
+    .from("post-images")
+    .upload(path, bytes, { contentType: "image/png", upsert: true });
+  if (uploadError) throw new Error(`AI image upload failed: ${uploadError.message}`);
+
+  const imageUrl = `/api/public/post-image/${post.id}`;
+  const { error: imageUpdateError } = await admin
+    .from("posts")
+    .update({ image_url: imageUrl })
+    .eq("id", post.id);
+  if (imageUpdateError) throw new Error(imageUpdateError.message);
+  return imageUrl;
+}
+
+/** Runs one autopilot cycle for a single blog: pick/create a topic, write it, generate its AI image, optionally publish. */
 export async function runAutopilotForBlog(
   admin: Admin,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -108,7 +173,7 @@ export async function runAutopilotForBlog(
         },
         {
           role: "user",
-          content: `${blogContext(blog)}\n\nPropose 3 new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}`,
+          content: `${blogContext(blog)}\n\nPropose 3 new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated, 3-6 terms)}`,
         },
       ]);
 
@@ -122,7 +187,7 @@ export async function runAutopilotForBlog(
           slug: slugifyServer(idea.title),
           outline: idea.outline ?? null,
           seo_title: idea.seo_title ?? null,
-          meta_description: idea.meta_description ?? null,
+          meta_description: meta150(idea.meta_description),
           keywords: idea.keywords ?? null,
           status: "idea",
         }));
@@ -154,25 +219,39 @@ export async function runAutopilotForBlog(
       },
       {
         role: "user",
-        content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
+        content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated)}`,
       },
     ]);
 
+    const finalMeta = meta150(article.meta_description) ?? meta150(post.meta_description);
     const { error: updateError } = await admin
       .from("posts")
       .update({
         body: article.body,
         seo_title: article.seo_title ?? post.seo_title,
-        meta_description: article.meta_description ?? post.meta_description,
+        meta_description: finalMeta,
         keywords: article.keywords ?? post.keywords,
         status: "drafted",
       })
       .eq("id", post.id);
     if (updateError) throw new Error(updateError.message);
 
-    // 3. Publish when enabled and Blogger is connected.
+    // 3. Every Autopilot article gets an AI featured image before it is eligible to publish.
+    const imageUrl = await generateAndStoreAutopilotImage(
+      admin,
+      blog,
+      post,
+      article.keywords ?? post.keywords,
+    );
+    if (!imageUrl) throw new Error("Autopilot could not create the required AI featured image.");
+
+    // 4. Publish when enabled and Blogger is connected.
     if (!blog.autopilot_auto_publish) {
-      return { ...base, status: "drafted", detail: post.title, postId: post.id };
+      return { ...base, status: "drafted", detail: `${post.title} (AI image ready)`, postId: post.id };
+    }
+
+    if (!origin) {
+      throw new Error("Autopilot cannot publish without a public site origin for the required AI image.");
     }
 
     const { data: connection } = await admin
@@ -185,7 +264,7 @@ export async function runAutopilotForBlog(
       return {
         ...base,
         status: "drafted",
-        detail: `${post.title} (Blogger not connected)`,
+        detail: `${post.title} (AI image ready; Blogger not connected)`,
         postId: post.id,
       };
     }
@@ -209,10 +288,11 @@ export async function runAutopilotForBlog(
       .eq("id", post.id)
       .maybeSingle();
 
-    const imageHtml =
-      fresh?.image_url && origin
-        ? `<p><img src="${origin}${fresh.image_url}" alt="${(fresh.seo_title || fresh.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n`
-        : "";
+    if (!fresh?.image_url) {
+      throw new Error("Autopilot blocked publishing because the required AI featured image is missing.");
+    }
+
+    const imageHtml = `<p><img src="${origin}${fresh.image_url}" alt="${(fresh.seo_title || fresh.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n`;
 
     const published = await createBloggerPost(accessToken, connection.blogger_blog_id, {
       title: article.seo_title || post.title,
