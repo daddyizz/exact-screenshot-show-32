@@ -32,10 +32,31 @@ export async function chatComplete(messages: ChatMessage[]): Promise<string> {
   return content;
 }
 
+export type ImageAspectRatio = "16:9" | "4:3" | "1:1";
+
 /** Generate an image via the AI gateway. Returns a base64 data URL. */
-export async function generateImage(prompt: string): Promise<string> {
+export async function generateImage(
+  prompt: string,
+  options?: { aspectRatio?: ImageAspectRatio },
+): Promise<string> {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new Error("AI is not configured for this project yet.");
+
+  const body: Record<string, unknown> = {
+    model: IMAGE_MODEL,
+    messages: [{ role: "user", content: prompt }],
+    modalities: ["image", "text"],
+  };
+
+  // Do not rely on prompt wording alone for image geometry. Gemini image models
+  // support an explicit output aspect-ratio request, so pass it through the
+  // gateway for the preset ratios BlogPilot exposes.
+  if (options?.aspectRatio) {
+    body.response_format = {
+      type: "image",
+      aspect_ratio: options.aspectRatio,
+    };
+  }
 
   const response = await fetch(GATEWAY_URL, {
     method: "POST",
@@ -43,11 +64,7 @@ export async function generateImage(prompt: string): Promise<string> {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: IMAGE_MODEL,
-      messages: [{ role: "user", content: prompt }],
-      modalities: ["image", "text"],
-    }),
+    body: JSON.stringify(body),
   });
 
   if (response.status === 429) throw new Error("AI rate limit reached. Try again in a moment.");
