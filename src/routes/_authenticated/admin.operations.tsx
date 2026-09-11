@@ -51,11 +51,13 @@ function buildDiagnosticReport(data: any) {
     if (run.blog_id) lines.push(`Blog ID: ${run.blog_id}`);
     if (run.post_id) lines.push(`Post ID: ${run.post_id}`);
     if (run.published_url) lines.push(`Published URL: ${run.published_url}`);
+    if (typeof run.retryCount === "number") lines.push(`Retry count: ${run.retryCount}`);
+    if (run.retryBlockedReason) lines.push(`Retry blocked: ${run.retryBlockedReason}`);
     lines.push("");
   }
 
   lines.push("=== WEBSITE DIAGNOSTICS ===");
-  if (diagnostics.length === 0) lines.push("No website diagnostic events recorded.", "");
+  if (diagnostics.length === 0) lines.push("No website diagnostic events recorded yet.", "");
   for (const item of diagnostics) {
     lines.push(`[${item.created_at}] ${String(item.severity).toUpperCase()} ${item.event_type}`);
     lines.push(`Route: ${item.route_path || "unknown"}`);
@@ -85,7 +87,7 @@ function OperationsPage() {
 
   <section className="space-y-3"><div className="flex items-center gap-2"><Activity className="size-5" aria-hidden/><h2 className="text-xl font-semibold">Activity log</h2></div>{data.activities.length===0?<div className="surface-panel p-6 text-sm text-muted-foreground">No activity recorded yet.</div>:<div className="space-y-2">{data.activities.slice(0,12).map((item:any)=><div key={item.id} className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{item.event_type}</p><p className="mt-1 text-xs text-muted-foreground">{item.message||item.entity_type||"System event"} · {new Date(item.created_at).toLocaleString()}</p></div><Badge variant={item.status==="failed"?"destructive":"outline"}>{item.status}</Badge></div>)}</div>}</section>
 
-  <section className="space-y-3"><div className="flex items-center gap-2"><Bot className="size-5" aria-hidden/><h2 className="text-xl font-semibold">Autopilot run history</h2></div>{data.runs.length===0?<div className="surface-panel p-6 text-sm text-muted-foreground">No recorded Autopilot runs yet.</div>:<div className="space-y-2">{data.runs.slice(0,10).map((run:any)=><div key={run.id} className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0"><p className="font-medium">{run.blogName}</p><p className="mt-1 text-xs text-muted-foreground">{run.detail||"No detail"} · {new Date(run.created_at).toLocaleString()}</p></div><div className="flex items-center gap-2"><Badge variant="outline">{run.trigger_source}</Badge><Badge variant={run.status==="error"?"destructive":"secondary"}>{run.status}</Badge>{run.status==="error"?<Button size="sm" variant="outline" disabled={retry.isPending} onClick={()=>retry.mutate(run.id)}><RotateCcw className={retry.isPending?"size-4 animate-spin":"size-4"} aria-hidden/>Retry</Button>:null}</div></div>)}</div>}</section>
+  <section className="space-y-3"><div className="flex items-center gap-2"><Bot className="size-5" aria-hidden/><h2 className="text-xl font-semibold">Autopilot run history</h2></div>{data.runs.length===0?<div className="surface-panel p-6 text-sm text-muted-foreground">No recorded Autopilot runs yet.</div>:<div className="space-y-2">{data.runs.slice(0,10).map((run:any)=><div key={run.id} className="surface-panel flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0"><p className="font-medium">{run.blogName}</p><p className="mt-1 text-xs text-muted-foreground">{run.detail||"No detail"} · {new Date(run.created_at).toLocaleString()}</p>{run.status==="error"&&run.retryBlockedReason?<p className="mt-1 text-xs text-muted-foreground">Retry unavailable: {run.retryBlockedReason}</p>:null}</div><div className="flex items-center gap-2"><Badge variant="outline">{run.trigger_source}</Badge><Badge variant={run.status==="error"?"destructive":"secondary"}>{run.status}</Badge>{run.status==="error"&&run.retryable?<Button size="sm" variant="outline" disabled={retry.isPending} onClick={()=>retry.mutate(run.id)}><RotateCcw className={retry.isPending?"size-4 animate-spin":"size-4"} aria-hidden/>Retry{run.retryCount?` (${run.retryCount}/3)`:""}</Button>:null}</div></div>)}</div>}</section>
 
   <details className="surface-panel group overflow-hidden">
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5">
