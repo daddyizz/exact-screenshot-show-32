@@ -116,7 +116,6 @@ export const getOperationsDashboard = createServerFn({ method: "GET" })
     const now = Date.now();
     const expiredConnections = (connections.data ?? []).filter((c: any) => !c.token_expires_at || new Date(c.token_expires_at).getTime() <= now).length;
     const enabledAutopilot = (blogs.data ?? []).filter((b: any) => b.autopilot).length;
-    const recentErrors = runs.filter((r: any) => r.status === "error").slice(0, 20).length;
     const recentWebsiteIssues = diagnostics.filter((d: any) => d.severity === "error" || d.severity === "warning").slice(0, 50).length;
 
     const retryCounts = new Map<string, number>();
@@ -137,6 +136,11 @@ export const getOperationsDashboard = createServerFn({ method: "GET" })
         retryBlockedReason: hasLaterRecovery ? "Recovered by a later run" : retryCount >= 3 ? "Retry limit reached" : null,
       };
     });
+
+    const recentErrors = decoratedRuns
+      .filter((r: any) => r.status === "error" && !r.retryBlockedReason)
+      .slice(0, 20)
+      .length;
 
     return {
       observabilityReady,
