@@ -14,6 +14,35 @@ function missingEntitlementSchema(error: any) {
   return message.includes("user_subscriptions") || message.includes("schema cache") || message.includes("does not exist") || message.includes("could not find the table");
 }
 
+function meta150(value?: string | null) {
+  const text = value?.trim();
+  if (!text) return null;
+  if (text.length <= 150) return text;
+  return `${text.slice(0, 147).trimEnd()}...`;
+}
+
+function imageAspectInstruction(blog: any) {
+  const ratio = blog.ai_image_aspect_ratio ?? "16:9";
+  if (ratio === "custom") {
+    const width = Number(blog.ai_image_custom_width ?? 0);
+    const height = Number(blog.ai_image_custom_height ?? 0);
+    if (width >= 320 && height >= 320) return `Use a ${width}x${height} canvas/composition (${width}:${height} aspect ratio).`;
+    return "Use a wide 16:9 landscape composition.";
+  }
+  if (ratio === "4:3") return "Use a 4:3 landscape composition.";
+  if (ratio === "1:1") return "Use a square 1:1 composition.";
+  return "Use a wide 16:9 landscape composition.";
+}
+
+function imageStyleInstruction(blog: any) {
+  switch (blog.ai_image_style ?? "auto") {
+    case "realistic": return "Style: realistic, photorealistic editorial photography with natural lighting and believable detail.";
+    case "2d": return "Style: polished 2D editorial illustration with clean shapes, depth and professional visual hierarchy.";
+    case "3d": return "Style: premium 3D rendered editorial artwork with realistic materials, lighting and depth.";
+    default: return "Style: automatically choose the most suitable professional visual treatment for the article topic.";
+  }
+}
+
 async function consumeUsage(kind: "draft" | "image", userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
@@ -93,11 +122,11 @@ export const generateTopics = createServerFn({ method: "POST" })
     try {
       const raw = await chatComplete([
         { role: "system", content: "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences." },
-        { role: "user", content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}` },
+        { role: "user", content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated, 3-6 terms)}` },
       ]);
       const ideas = extractJson<Array<{ title: string; outline?: string; seo_title?: string; meta_description?: string; keywords?: string }>>(raw);
       const lowerTaken = new Set(taken.map((t) => t.trim().toLowerCase()));
-      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({ user_id: userId, blog_id: data.blogId, title: idea.title.trim(), slug: slugifyServer(idea.title), outline: idea.outline ?? null, seo_title: idea.seo_title ?? null, meta_description: idea.meta_description ?? null, keywords: idea.keywords ?? null, status: "idea" }));
+      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({ user_id: userId, blog_id: data.blogId, title: idea.title.trim(), slug: slugifyServer(idea.title), outline: idea.outline ?? null, seo_title: idea.seo_title ?? null, meta_description: meta150(idea.meta_description), keywords: idea.keywords ?? null, status: "idea" }));
       if (rows.length === 0) {
         await writeActivity(admin,{userId,eventType:"ai.topics_generated",entityType:"blog",entityId:data.blogId,status:"info",message:"AI topic planning completed with no new topics",metadata:{requested:data.count,inserted:0}});
         return { inserted: 0 };
@@ -126,10 +155,10 @@ export const generateArticle = createServerFn({ method: "POST" })
       const blog = post.blogs;
       const raw = await chatComplete([
         { role: "system", content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences." },
-        { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}` },
+        { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated)}` },
       ]);
       const article = extractJson<{ body: string; seo_title?: string; meta_description?: string; keywords?: string }>(raw);
-      const { error } = await supabase.from("posts").update({ body: article.body, seo_title: article.seo_title ?? post.seo_title, meta_description: article.meta_description ?? post.meta_description, keywords: article.keywords ?? post.keywords, status: "drafted" }).eq("id", data.postId);
+      const { error } = await supabase.from("posts").update({ body: article.body, seo_title: article.seo_title ?? post.seo_title, meta_description: meta150(article.meta_description) ?? meta150(post.meta_description), keywords: article.keywords ?? post.keywords, status: "drafted" }).eq("id", data.postId);
       if (error) throw new Error(error.message);
       await writeActivity(admin,{userId,eventType:post.body?"ai.article_rewritten":"ai.article_generated",entityType:"post",entityId:data.postId,message:post.body?"AI article rewritten":"AI article generated",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage}});
       return { ok: true };
@@ -145,13 +174,21 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({ postId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: post, error: postError } = await supabase.from("posts").select("id, title, keywords, blog_id, image_url, blogs(name, niche)").eq("id", data.postId).maybeSingle();
+    const { data: post, error: postError } = await supabase.from("posts").select("id, title, keywords, blog_id, image_url, blogs(*)").eq("id", data.postId).maybeSingle();
     if (postError) throw new Error(postError.message);
     if (!post || !post.blogs) throw new Error("Post not found");
     const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
     const reservation = await consumeUsage("image", userId);
     try {
-      const prompt = [`Create a clean, eye-catching blog featured image (16:9) for an article titled "${post.title}".`, `Blog: ${post.blogs.name}. Niche: ${post.blogs.niche}.`, post.keywords ? `Related keywords: ${post.keywords}.` : null, "Style: modern editorial illustration, no text, no watermarks."].filter(Boolean).join(" ");
+      const blog = post.blogs as any;
+      const prompt = [
+        `Create a professional, eye-catching featured image for an article titled "${post.title}".`,
+        `Blog: ${blog.name}. Niche: ${blog.niche}.`,
+        post.keywords ? `Related keywords: ${post.keywords}.` : null,
+        imageAspectInstruction(blog),
+        imageStyleInstruction(blog),
+        "No text, captions, logos, UI, borders or watermarks. Make the main subject clear on mobile and suitable for a professional blog cover.",
+      ].filter(Boolean).join(" ");
       const dataUrl = await generateImage(prompt);
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
@@ -161,7 +198,7 @@ export const generateFeaturedImage = createServerFn({ method: "POST" })
       const imageUrl = `/api/public/post-image/${data.postId}`;
       const { error } = await supabase.from("posts").update({ image_url: imageUrl }).eq("id", data.postId);
       if (error) throw new Error(error.message);
-      await writeActivity(admin,{userId,eventType:post.image_url?"ai.image_regenerated":"ai.image_generated",entityType:"post",entityId:data.postId,message:post.image_url?"AI featured image regenerated":"AI featured image generated",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage}});
+      await writeActivity(admin,{userId,eventType:post.image_url?"ai.image_regenerated":"ai.image_generated",entityType:"post",entityId:data.postId,message:post.image_url?"AI featured image regenerated":"AI featured image generated",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage,aspectRatio:blog.ai_image_aspect_ratio??"16:9",imageStyle:blog.ai_image_style??"auto"}});
       return { imageUrl };
     } catch (error:any) {
       await refundUsage("image", userId, reservation.storage);
