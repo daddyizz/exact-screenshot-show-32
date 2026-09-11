@@ -165,12 +165,18 @@ export const generateArticle = createServerFn({ method: "POST" })
     const reservation = await consumeUsage("draft", userId);
     try {
       const blog = post.blogs;
+      const { entitled } = await resolveEntitlement(userId);
+      const metaKeywords = String((blog as any).meta_description_keywords ?? "").trim();
+      const metaField = entitled
+        ? `\n"meta_description": string (max 150 chars${metaKeywords ? `, naturally include these keywords: ${metaKeywords}` : ""}),`
+        : "";
       const raw = await chatComplete([
         { role: "system", content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences." },
-        { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated)}` },
+        { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars),${metaField} "keywords": string (comma separated)}` },
       ]);
       const article = extractJson<{ body: string; seo_title?: string; meta_description?: string; keywords?: string }>(raw);
-      const { error } = await supabase.from("posts").update({ body: article.body, seo_title: article.seo_title ?? post.seo_title, meta_description: meta150(article.meta_description) ?? meta150(post.meta_description), keywords: article.keywords ?? post.keywords, status: "drafted" }).eq("id", data.postId);
+      const { error } = await supabase.from("posts").update({ body: article.body, seo_title: article.seo_title ?? post.seo_title, meta_description: entitled ? (meta150(article.meta_description) ?? meta150(post.meta_description)) : meta150(post.meta_description), keywords: article.keywords ?? post.keywords, status: "drafted" }).eq("id", data.postId);
+
       if (error) throw new Error(error.message);
       await writeActivity(admin,{userId,eventType:post.body?"ai.article_rewritten":"ai.article_generated",entityType:"post",entityId:data.postId,message:post.body?"AI article rewritten":"AI article generated",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage}});
       return { ok: true };
