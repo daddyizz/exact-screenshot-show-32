@@ -43,7 +43,7 @@ function imageStyleInstruction(blog: any) {
   }
 }
 
-async function consumeUsage(kind: "draft" | "image", userId: string) {
+async function resolveEntitlement(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
   const userResult = await admin.auth.admin.getUserById(userId);
@@ -67,8 +67,14 @@ async function consumeUsage(kind: "draft" | "image", userId: string) {
   const rawPlan = dbPlan ?? metadataPlan ?? (isAdmin ? "pro" : "free");
   const status = dbStatus ?? metadataStatus ?? "active";
   const entitled = rawPlan === "pro" && ["active", "trialing"].includes(status);
+  return { entitled, app, admin };
+}
+
+async function consumeUsage(kind: "draft" | "image", userId: string) {
+  const { entitled, app, admin } = await resolveEntitlement(userId);
 
   if (kind === "image" && !entitled) throw new Error("AI cover images are available on the Pro plan.");
+
 
   const fn = kind === "draft" ? "consume_ai_draft_usage" : "consume_ai_image_usage";
   const rpc = await admin.rpc(fn, { p_user_id: userId });
@@ -119,14 +125,20 @@ export const generateTopics = createServerFn({ method: "POST" })
     const { data: existing } = await supabase.from("posts").select("title").eq("blog_id", data.blogId).limit(100);
     const taken = (existing ?? []).map((p) => p.title);
     const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
+    const { entitled } = await resolveEntitlement(userId);
+    const metaKeywords = String((blog as any).meta_description_keywords ?? "").trim();
+    const metaInstruction = entitled
+      ? `\n"meta_description": string (max 150 chars${metaKeywords ? `, naturally include these keywords: ${metaKeywords}` : ""}),`
+      : "";
     try {
       const raw = await chatComplete([
         { role: "system", content: "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences." },
-        { role: "user", content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated, 3-6 terms)}` },
+        { role: "user", content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars),${metaInstruction} "keywords": string (comma separated, 3-6 terms)}` },
       ]);
       const ideas = extractJson<Array<{ title: string; outline?: string; seo_title?: string; meta_description?: string; keywords?: string }>>(raw);
       const lowerTaken = new Set(taken.map((t) => t.trim().toLowerCase()));
-      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({ user_id: userId, blog_id: data.blogId, title: idea.title.trim(), slug: slugifyServer(idea.title), outline: idea.outline ?? null, seo_title: idea.seo_title ?? null, meta_description: meta150(idea.meta_description), keywords: idea.keywords ?? null, status: "idea" }));
+      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({ user_id: userId, blog_id: data.blogId, title: idea.title.trim(), slug: slugifyServer(idea.title), outline: idea.outline ?? null, seo_title: idea.seo_title ?? null, meta_description: entitled ? meta150(idea.meta_description) : null, keywords: idea.keywords ?? null, status: "idea" }));
+
       if (rows.length === 0) {
         await writeActivity(admin,{userId,eventType:"ai.topics_generated",entityType:"blog",entityId:data.blogId,status:"info",message:"AI topic planning completed with no new topics",metadata:{requested:data.count,inserted:0}});
         return { inserted: 0 };
@@ -153,12 +165,18 @@ export const generateArticle = createServerFn({ method: "POST" })
     const reservation = await consumeUsage("draft", userId);
     try {
       const blog = post.blogs;
+      const { entitled } = await resolveEntitlement(userId);
+      const metaKeywords = String((blog as any).meta_description_keywords ?? "").trim();
+      const metaField = entitled
+        ? `\n"meta_description": string (max 150 chars${metaKeywords ? `, naturally include these keywords: ${metaKeywords}` : ""}),`
+        : "";
       const raw = await chatComplete([
         { role: "system", content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences." },
-        { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated)}` },
+        { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars),${metaField} "keywords": string (comma separated)}` },
       ]);
       const article = extractJson<{ body: string; seo_title?: string; meta_description?: string; keywords?: string }>(raw);
-      const { error } = await supabase.from("posts").update({ body: article.body, seo_title: article.seo_title ?? post.seo_title, meta_description: meta150(article.meta_description) ?? meta150(post.meta_description), keywords: article.keywords ?? post.keywords, status: "drafted" }).eq("id", data.postId);
+      const { error } = await supabase.from("posts").update({ body: article.body, seo_title: article.seo_title ?? post.seo_title, meta_description: entitled ? (meta150(article.meta_description) ?? meta150(post.meta_description)) : meta150(post.meta_description), keywords: article.keywords ?? post.keywords, status: "drafted" }).eq("id", data.postId);
+
       if (error) throw new Error(error.message);
       await writeActivity(admin,{userId,eventType:post.body?"ai.article_rewritten":"ai.article_generated",entityType:"post",entityId:data.postId,message:post.body?"AI article rewritten":"AI article generated",metadata:{blogId:post.blog_id,title:post.title,usageStorage:reservation.storage}});
       return { ok: true };
