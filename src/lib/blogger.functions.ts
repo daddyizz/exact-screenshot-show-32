@@ -74,7 +74,9 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
   if (connError) throw new Error(connError.message); if (!connection?.blogger_blog_id) throw new Error("Connect this blog to Blogger first.");
   let accessToken = connection.access_token ?? ""; const expired = !connection.token_expires_at || new Date(connection.token_expires_at) <= new Date();
   if (expired) accessToken = (await refreshConnection(admin, connection, userId, post.blog_id)).accessToken;
-  const imageHtml = post.image_url && data.origin ? `<p><img src="${data.origin}${post.image_url}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n` : "";
+  const imageVersion = Date.now();
+  const imageSrc = post.image_url && data.origin ? `${data.origin}${post.image_url}${post.image_url.includes("?") ? "&" : "?"}v=${imageVersion}` : null;
+  const imageHtml = imageSrc ? `<p><img src="${imageSrc}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n` : "";
   const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(post.body), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
   const hadExistingPost = Boolean(post.blogger_post_id); let recoveredMissingPost = false; let published: { id: string; url: string };
   try {
@@ -84,7 +86,7 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
     } else published = await createBloggerPost(accessToken, connection.blogger_blog_id, input);
     const { error } = await supabase.from("posts").update({ status: "published", published_at: new Date().toISOString(), blogger_post_id: published.id, blogger_url: published.url }).eq("id", data.postId); if (error) throw new Error(error.message);
     await createNotification(admin, { userId, type: recoveredMissingPost ? "blogger.recovered" : "blogger.published", title: recoveredMissingPost ? "Blogger post restored" : hadExistingPost ? "Article republished" : "Article published", message: recoveredMissingPost ? `${post.title} was missing from Blogger, so BlogPilot created a replacement post.` : post.title, severity: "success", actionUrl: "/articles", actionLabel: "View articles" });
-    await writeActivity(admin,{userId,eventType:recoveredMissingPost?"blogger.post_recovered":hadExistingPost?"blogger.post_republished":"blogger.post_published",entityType:"post",entityId:data.postId,message:recoveredMissingPost?"Missing Blogger post restored":hadExistingPost?"Article republished to Blogger":"Article published to Blogger",metadata:{blogId:post.blog_id,bloggerPostId:published.id,title:post.title}});
+    await writeActivity(admin,{userId,eventType:recoveredMissingPost?"blogger.post_recovered":hadExistingPost?"blogger.post_republished":"blogger.post_published",entityType:"post",entityId:data.postId,message:recoveredMissingPost?"Missing Blogger post restored":hadExistingPost?"Article republished to Blogger":"Article published to Blogger",metadata:{blogId:post.blog_id,bloggerPostId:published.id,title:post.title,imageVersion}});
     return { url: published.url, republished: hadExistingPost && !recoveredMissingPost, recoveredMissingPost };
   } catch(error:any) {
     await writeActivity(admin,{userId,eventType:"blogger.publish_failed",entityType:"post",entityId:data.postId,status:"failed",message:"Blogger publish failed",metadata:{blogId:post.blog_id,title:post.title,error:String(error?.message??error).slice(0,500)}});
