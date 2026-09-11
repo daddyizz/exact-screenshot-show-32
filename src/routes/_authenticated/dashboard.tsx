@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImageIcon, PlayCircle, Plus, Rocket, Sparkles } from "lucide-react";
+import { ImageIcon, PlayCircle, Plus, Rocket, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { generateTopics } from "@/lib/ai.functions";
 import { runAutopilotNow, runDueAutopilot, updateAutopilot } from "@/lib/autopilot.functions";
 import { createBlog as createBlogServer } from "@/lib/blogs.functions";
+import { deleteBlogToTrash } from "@/lib/blog-trash.functions";
 import { getMyPlanUsage } from "@/lib/account.functions";
 import { Switch } from "@/components/ui/switch";
 import { AdSlot } from "@/components/AdSlot";
@@ -48,13 +49,14 @@ function Dashboard() {
   const queryClient = useQueryClient();
   const generateTopicsFn = useServerFn(generateTopics);
   const createBlogFn = useServerFn(createBlogServer);
+  const deleteBlogFn = useServerFn(deleteBlogToTrash);
   const getPlanUsageFn = useServerFn(getMyPlanUsage);
   const [open, setOpen] = useState(false);
   const [runSetup, setRunSetup] = useState<RunSetup | null>(null);
   const [form, setForm] = useState({ name: "", blog_url: "", niche: NICHES[0], target_country: "US", language: "en", posts_per_week: 3 });
 
   const blogs = useQuery({ queryKey: ["blogs"], queryFn: async () => {
-    const { data, error } = await supabase.from("blogs").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("blogs").select("*").is("deleted_at", null).order("created_at", { ascending: false });
     if (error) throw error;
     return data;
   }});
@@ -72,6 +74,20 @@ function Dashboard() {
       setOpen(false);
       setForm({ ...form, name: "", blog_url: "" });
       await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-plan-usage"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteBlog = useMutation({
+    mutationFn: (blogId: string) => deleteBlogFn({ data: { blogId } }),
+    onSuccess: async (result) => {
+      const date = result.purgeAfter ? new Date(result.purgeAfter).toLocaleDateString() : null;
+      toast.success(date ? `Blog moved to Trash. Recoverable until ${date}.` : "Blog moved to Trash.");
+      await queryClient.invalidateQueries({ queryKey: ["blogs"] });
+      await queryClient.invalidateQueries({ queryKey: ["posts"] });
+      await queryClient.invalidateQueries({ queryKey: ["post-counts"] });
+      await queryClient.invalidateQueries({ queryKey: ["deleted-blogs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-plan-usage"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -160,6 +176,7 @@ function Dashboard() {
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div><p className="text-eyebrow">Overview</p><h1 className="mt-1 text-3xl font-bold">Your blogs</h1></div>
       <div className="flex flex-wrap gap-2">
+        <Button variant="outline" asChild><Link to="/trash"><Trash2 aria-hidden />Trash</Link></Button>
         <Button variant="secondary" asChild><Link to="/settings"><Rocket aria-hidden />Connect Blogger</Link></Button>
         <Button onClick={handleAddBlogClick}><Plus aria-hidden />Add blog</Button>
         <Dialog open={open} onOpenChange={setOpen}>
@@ -223,6 +240,7 @@ function Dashboard() {
         <Button variant="outline" size="sm" asChild><Link to="/settings">Configure</Link></Button><Button variant="outline" size="sm" asChild><Link to="/queue">Queue</Link></Button>
         <Button size="sm" onClick={() => planTopics.mutate(blog.id)} disabled={planTopics.isPending}><Sparkles aria-hidden />{planTopics.isPending && planTopics.variables === blog.id ? "Planning…" : "Plan topics"}</Button>
         <Button size="sm" variant="secondary" onClick={() => openRunSetup(blog as any)} disabled={runNow.isPending}><PlayCircle aria-hidden />Review & run Autopilot</Button>
+        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={deleteBlog.isPending} onClick={() => { if (window.confirm(`Delete “${blog.name}”? It will stay recoverable in Trash for 90 days with all articles and settings.`)) deleteBlog.mutate(blog.id); }}><Trash2 aria-hidden />Delete</Button>
       </div>
     </div>)}</div>}
     <AdSlot id="dashboard-bottom" format="leaderboard" />
