@@ -29,6 +29,18 @@ async function refreshConnection(admin: any, connection: any, userId: string, bl
   }
 }
 
+function bloggerImageAspect(blog: any) {
+  const ratio = blog?.ai_image_aspect_ratio ?? "16:9";
+  if (ratio === "1:1") return "1 / 1";
+  if (ratio === "4:3") return "4 / 3";
+  if (ratio === "custom") {
+    const width = Number(blog?.ai_image_custom_width ?? 0);
+    const height = Number(blog?.ai_image_custom_height ?? 0);
+    if (width >= 320 && height >= 320) return `${width} / ${height}`;
+  }
+  return "16 / 9";
+}
+
 export const getBloggerOAuthConfig = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ redirectUri: z.string().url().optional() }).parse(data ?? {})).handler(async ({ data }) => bloggerOAuthConfig(data.redirectUri));
 
 export const startBloggerAuth = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ blogId: z.string().uuid(), redirectUri: z.string().url().optional() }).parse(data)).handler(async ({ data, context }) => {
@@ -68,7 +80,7 @@ export const disconnectBlogger = createServerFn({ method: "POST" }).middleware([
 });
 
 export const publishToBlogger = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ postId: z.string().uuid(), origin: z.string().url().optional() }).parse(data)).handler(async ({ data, context }) => {
-  const { supabase, userId } = context; const { data: post, error: postError } = await supabase.from("posts").select("*").eq("id", data.postId).maybeSingle();
+  const { supabase, userId } = context; const { data: post, error: postError } = await supabase.from("posts").select("*, blogs(ai_image_aspect_ratio,ai_image_custom_width,ai_image_custom_height)").eq("id", data.postId).maybeSingle();
   if (postError) throw new Error(postError.message); if (!post) throw new Error("Post not found"); if (!post.body) throw new Error("Write the article before publishing.");
   const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: connection, error: connError } = await admin.from("blogger_connections").select("*").eq("blog_id", post.blog_id).eq("user_id", userId).maybeSingle();
   if (connError) throw new Error(connError.message); if (!connection?.blogger_blog_id) throw new Error("Connect this blog to Blogger first.");
@@ -76,7 +88,8 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
   if (expired) accessToken = (await refreshConnection(admin, connection, userId, post.blog_id)).accessToken;
   const imageVersion = Date.now();
   const imageSrc = post.image_url && data.origin ? `${data.origin}${post.image_url}${post.image_url.includes("?") ? "&" : "?"}v=${imageVersion}` : null;
-  const imageHtml = imageSrc ? `<p><img src="${imageSrc}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n` : "";
+  const aspect = bloggerImageAspect((post as any).blogs);
+  const imageHtml = imageSrc ? `<p style="margin:0 0 1.5em"><img src="${imageSrc}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="display:block;width:100%;max-width:100%;aspect-ratio:${aspect};object-fit:cover;height:auto" /></p>\n` : "";
   const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(post.body), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
   const hadExistingPost = Boolean(post.blogger_post_id); let recoveredMissingPost = false; let published: { id: string; url: string };
   try {
@@ -86,7 +99,7 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
     } else published = await createBloggerPost(accessToken, connection.blogger_blog_id, input);
     const { error } = await supabase.from("posts").update({ status: "published", published_at: new Date().toISOString(), blogger_post_id: published.id, blogger_url: published.url }).eq("id", data.postId); if (error) throw new Error(error.message);
     await createNotification(admin, { userId, type: recoveredMissingPost ? "blogger.recovered" : "blogger.published", title: recoveredMissingPost ? "Blogger post restored" : hadExistingPost ? "Article republished" : "Article published", message: recoveredMissingPost ? `${post.title} was missing from Blogger, so BlogPilot created a replacement post.` : post.title, severity: "success", actionUrl: "/articles", actionLabel: "View articles" });
-    await writeActivity(admin,{userId,eventType:recoveredMissingPost?"blogger.post_recovered":hadExistingPost?"blogger.post_republished":"blogger.post_published",entityType:"post",entityId:data.postId,message:recoveredMissingPost?"Missing Blogger post restored":hadExistingPost?"Article republished to Blogger":"Article published to Blogger",metadata:{blogId:post.blog_id,bloggerPostId:published.id,title:post.title,imageVersion}});
+    await writeActivity(admin,{userId,eventType:recoveredMissingPost?"blogger.post_recovered":hadExistingPost?"blogger.post_republished":"blogger.post_published",entityType:"post",entityId:data.postId,message:recoveredMissingPost?"Missing Blogger post restored":hadExistingPost?"Article republished to Blogger":"Article published to Blogger",metadata:{blogId:post.blog_id,bloggerPostId:published.id,title:post.title,imageVersion,imageAspect:aspect}});
     return { url: published.url, republished: hadExistingPost && !recoveredMissingPost, recoveredMissingPost };
   } catch(error:any) {
     await writeActivity(admin,{userId,eventType:"blogger.publish_failed",entityType:"post",entityId:data.postId,status:"failed",message:"Blogger publish failed",metadata:{blogId:post.blog_id,title:post.title,error:String(error?.message??error).slice(0,500)}});
