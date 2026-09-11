@@ -3,8 +3,28 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 import { isBlogDue, runAutopilotForBlog, type AutopilotOutcome } from "@/lib/autopilot.server";
 import { writeActivity, writeAutopilotRun } from "@/lib/operations.server";
 
+async function authenticateAutopilotCron(request: Request) {
+  const customSecret = process.env.BLOGPILOT_CRON_SECRET;
+  if (customSecret) {
+    const match = /^Bearer ([^\s,]+)$/.exec(request.headers.get("authorization") ?? "");
+    const token = match?.[1];
+    if (!token) return new Response("Unauthorized", { status: 401 });
+
+    const { createHash, timingSafeEqual } = await import("node:crypto");
+    const digest = (value: string) => createHash("sha256").update(value, "utf8").digest();
+    const provided = digest(token);
+    const expected = digest(customSecret);
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    return null;
+  }
+
+  return authenticateCronRequest(request);
+}
+
 async function handle(request: Request) {
-  const denied = await authenticateCronRequest(request);
+  const denied = await authenticateAutopilotCron(request);
   if (denied) return denied;
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
