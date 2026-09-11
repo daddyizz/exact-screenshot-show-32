@@ -24,8 +24,6 @@ import {
   getBloggerStatus,
   startBloggerAuth,
 } from "@/lib/blogger.functions";
-import { getMyPlanUsage } from "@/lib/account.functions";
-
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -142,20 +140,11 @@ function SettingsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const planFn = useServerFn(getMyPlanUsage);
-  const planQuery = useQuery({
-    queryKey: ["my-plan-usage"],
-    queryFn: () => planFn(),
-    retry: false,
-  });
-  const isPro = planQuery.data?.plan === "pro";
-
   const bloggerStatus = useQuery({
     queryKey: ["blogger-status", selected?.id],
     enabled: !!selected,
     queryFn: () => bloggerStatusFn({ data: { blogId: selected!.id } }),
   });
-
 
   const connect = useMutation({
     mutationFn: async () => {
@@ -277,71 +266,58 @@ function SettingsPage() {
               <Textarea id="kw" rows={3} defaultValue={selected.keyword_focus ?? ""} placeholder="Comma-separated seed keywords, e.g. budget travel malaysia, cheap flights kl" onBlur={(e) => saveBlog.mutate({ keyword_focus: e.target.value.trim() || null })} />
             </div>
 
-            {isPro ? (
-              <div className="rounded-lg border border-border p-4 sm:col-span-2">
-                <div className="mb-4 flex items-start gap-3">
-                  <ImageIcon className="mt-0.5 size-5 text-primary" aria-hidden />
-                  <div>
-                    <p className="text-sm font-semibold">AI featured image</p>
-                    <p className="text-xs text-muted-foreground">Autopilot always creates an AI image before an article can publish.</p>
-                  </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Image ratio</Label>
-                    <Select value={selectedAny.ai_image_aspect_ratio ?? "16:9"} onValueChange={(v) => saveBlog.mutate({ ai_image_aspect_ratio: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="16:9">16:9 — Widescreen</SelectItem>
-                        <SelectItem value="4:3">4:3 — Standard</SelectItem>
-                        <SelectItem value="1:1">1:1 — Square</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Image style</Label>
-                    <Select value={selectedAny.ai_image_style ?? "auto"} onValueChange={(v) => saveBlog.mutate({ ai_image_style: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">Auto</SelectItem>
-                        <SelectItem value="realistic">Realistic</SelectItem>
-                        <SelectItem value="2d">2D</SelectItem>
-                        <SelectItem value="3d">3D</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {(selectedAny.ai_image_aspect_ratio ?? "16:9") === "custom" ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="custom-width">Custom width</Label>
-                        <Input id="custom-width" type="number" min={320} max={4096} defaultValue={selectedAny.ai_image_custom_width ?? 1200} onBlur={(e) => saveBlog.mutate({ ai_image_custom_width: Math.min(4096, Math.max(320, Number(e.target.value) || 1200)) })} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="custom-height">Custom height</Label>
-                        <Input id="custom-height" type="number" min={320} max={4096} defaultValue={selectedAny.ai_image_custom_height ?? 630} onBlur={(e) => saveBlog.mutate({ ai_image_custom_height: Math.min(4096, Math.max(320, Number(e.target.value) || 630)) })} />
-                      </div>
-                    </>
-                  ) : null}
+            <div className="rounded-lg border border-border p-4 sm:col-span-2">
+              <div className="mb-4 flex items-start gap-3">
+                <ImageIcon className="mt-0.5 size-5 text-primary" aria-hidden />
+                <div>
+                  <p className="text-sm font-semibold">AI featured image</p>
+                  <p className="text-xs text-muted-foreground">Autopilot always creates an AI image before an article can publish.</p>
                 </div>
               </div>
-            ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Image ratio</Label>
+                  <Select value={selectedAny.ai_image_aspect_ratio ?? "16:9"} onValueChange={(v) => saveBlog.mutate({ ai_image_aspect_ratio: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="16:9">16:9 — Widescreen</SelectItem>
+                      <SelectItem value="4:3">4:3 — Standard</SelectItem>
+                      <SelectItem value="1:1">1:1 — Square</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Image style</Label>
+                  <Select value={selectedAny.ai_image_style ?? "auto"} onValueChange={(v) => saveBlog.mutate({ ai_image_style: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto</SelectItem>
+                      <SelectItem value="realistic">Realistic</SelectItem>
+                      <SelectItem value="2d">2D</SelectItem>
+                      <SelectItem value="3d">3D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(selectedAny.ai_image_aspect_ratio ?? "16:9") === "custom" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-width">Custom width</Label>
+                      <Input id="custom-width" type="number" min={320} max={4096} defaultValue={selectedAny.ai_image_custom_width ?? 1200} onBlur={(e) => saveBlog.mutate({ ai_image_custom_width: Math.min(4096, Math.max(320, Number(e.target.value) || 1200)) })} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-height">Custom height</Label>
+                      <Input id="custom-height" type="number" min={320} max={4096} defaultValue={selectedAny.ai_image_custom_height ?? 630} onBlur={(e) => saveBlog.mutate({ ai_image_custom_height: Math.min(4096, Math.max(320, Number(e.target.value) || 630)) })} />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
 
             <div className="rounded-lg border border-border p-4 sm:col-span-2">
               <p className="text-sm font-medium">SEO meta search description</p>
-              {isPro ? (
-                <>
-                  <p className="mt-1 text-sm text-muted-foreground">Leave the keywords empty and AI writes the whole description, or add keywords and AI builds the description around them. Maximum 150 characters.</p>
-                  <div className="mt-3 space-y-2">
-                    <Label htmlFor="meta-kw">Description keywords (optional)</Label>
-                    <Textarea id="meta-kw" rows={2} defaultValue={selectedAny.meta_description_keywords ?? ""} placeholder="e.g. tips jimat duit, bajet bulanan" onBlur={(e) => saveBlog.mutate({ meta_description_keywords: e.target.value.trim() || null })} />
-                  </div>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-muted-foreground">On the Free plan you write the search description yourself for each article, in the Articles page. AI-written descriptions are a Pro feature.</p>
-              )}
+              <p className="mt-1 text-sm text-muted-foreground">AI suggests this automatically for every generated topic/article and BlogPilot enforces a maximum of 150 characters.</p>
             </div>
-
 
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-4 sm:col-span-2">
               <div>

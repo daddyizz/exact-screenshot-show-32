@@ -278,7 +278,6 @@ export type Database = {
           id: string
           keyword_focus: string | null
           language: string
-          meta_description_keywords: string | null
           name: string
           niche: string
           posts_per_week: number
@@ -301,7 +300,6 @@ export type Database = {
           id?: string
           keyword_focus?: string | null
           language?: string
-          meta_description_keywords?: string | null
           name: string
           niche?: string
           posts_per_week?: number
@@ -324,7 +322,6 @@ export type Database = {
           id?: string
           keyword_focus?: string | null
           language?: string
-          meta_description_keywords?: string | null
           name?: string
           niche?: string
           posts_per_week?: number
