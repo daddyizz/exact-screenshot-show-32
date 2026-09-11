@@ -1,0 +1,1 @@
+ALTER TABLE public.blogs ADD COLUMN IF NOT EXISTS meta_description_keywords text;
