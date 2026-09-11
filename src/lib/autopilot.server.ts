@@ -1,4 +1,4 @@
-import { blogContext, chatComplete, extractJson, slugifyServer } from "./ai.server";
+import { blogContext, chatCompleteJson, slugifyServer } from "./ai.server";
 import {
   createBloggerPost,
   markdownToHtml,
@@ -61,26 +61,7 @@ export async function runAutopilotForBlog(
         .limit(100);
       const taken = (existing ?? []).map((p: { title: string }) => p.title);
 
-      const raw = await chatComplete([
-        {
-          role: "system",
-          content:
-            "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences.",
-        },
-        {
-          role: "user",
-          content: `${blogContext(blog)}
-
-Propose 3 new blog post ideas with genuine search demand for this audience.
-Avoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.
-Write everything in the blog's language.
-
-Return a JSON array where each item is:
-{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}`,
-        },
-      ]);
-
-      const ideas = extractJson<
+      const ideas = await chatCompleteJson<
         Array<{
           title: string;
           outline?: string;
@@ -88,7 +69,17 @@ Return a JSON array where each item is:
           meta_description?: string;
           keywords?: string;
         }>
-      >(raw);
+      >([
+        {
+          role: "system",
+          content:
+            "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences.",
+        },
+        {
+          role: "user",
+          content: `${blogContext(blog)}\n\nPropose 3 new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated, 3-6 terms)}`,
+        },
+      ]);
 
       const lowerTaken = new Set(taken.map((t: string) => t.trim().toLowerCase()));
       const rows = ideas
@@ -118,8 +109,13 @@ Return a JSON array where each item is:
     const post = candidates?.[0];
     if (!post) return { ...base, status: "skipped", detail: "Nothing to write." };
 
-    // 2. Write the article.
-    const raw = await chatComplete([
+    // 2. Write the article. Malformed model JSON is automatically regenerated once.
+    const article = await chatCompleteJson<{
+      body: string;
+      seo_title?: string;
+      meta_description?: string;
+      keywords?: string;
+    }>([
       {
         role: "system",
         content:
@@ -127,25 +123,9 @@ Return a JSON array where each item is:
       },
       {
         role: "user",
-        content: `${blogContext(blog)}
-
-Write a complete, original blog article.
-Title: ${post.title}
-${post.outline ? `Outline to follow:\n${post.outline}` : ""}
-Target length: about ${blog.article_length} words.
-Use clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.
-
-Return JSON:
-{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
+        content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 155 chars), "keywords": string (comma separated)}`,
       },
     ]);
-
-    const article = extractJson<{
-      body: string;
-      seo_title?: string;
-      meta_description?: string;
-      keywords?: string;
-    }>(raw);
 
     const { error: updateError } = await admin
       .from("posts")
