@@ -6,6 +6,8 @@ import {
   tokenExpiry,
 } from "./blogger.server";
 
+export const AUTOPILOT_LOCKED_DETAIL = "Another Autopilot run is already in progress for this blog.";
+
 export type AutopilotOutcome = {
   blogId: string;
   blogName: string;
@@ -34,6 +36,26 @@ type Admin = Awaited<
   typeof import("@/integrations/supabase/client.server")
 >["supabaseAdmin"];
 
+function missingLockRpc(error: any) {
+  const message = String(error?.message ?? error ?? "").toLowerCase();
+  return message.includes("acquire_autopilot_run_lock") || message.includes("release_autopilot_run_lock") || message.includes("schema cache") || message.includes("could not find the function");
+}
+
+async function acquireRunLock(admin: Admin, blogId: string): Promise<{ token: string | null; supported: boolean }> {
+  const result = await (admin as any).rpc("acquire_autopilot_run_lock", { p_blog_id: blogId, p_stale_after_minutes: 20 });
+  if (result.error) {
+    if (missingLockRpc(result.error)) return { token: null, supported: false };
+    throw new Error(result.error.message);
+  }
+  return { token: result.data ?? null, supported: true };
+}
+
+async function releaseRunLock(admin: Admin, blogId: string, token: string | null, supported: boolean) {
+  if (!supported || !token) return;
+  const result = await (admin as any).rpc("release_autopilot_run_lock", { p_blog_id: blogId, p_lock_token: token });
+  if (result.error && !missingLockRpc(result.error)) console.error("Autopilot lock release failed", result.error);
+}
+
 /** Runs one autopilot cycle for a single blog: pick/create a topic, write it, optionally publish. */
 export async function runAutopilotForBlog(
   admin: Admin,
@@ -42,8 +64,17 @@ export async function runAutopilotForBlog(
   origin?: string,
 ): Promise<AutopilotOutcome> {
   const base = { blogId: blog.id as string, blogName: blog.name as string };
+  let lockToken: string | null = null;
+  let lockSupported = false;
 
   try {
+    const lock = await acquireRunLock(admin, blog.id);
+    lockToken = lock.token;
+    lockSupported = lock.supported;
+    if (lockSupported && !lockToken) {
+      return { ...base, status: "skipped", detail: AUTOPILOT_LOCKED_DETAIL };
+    }
+
     // 1. Find a pending idea, or generate fresh ones.
     let { data: candidates } = await admin
       .from("posts")
@@ -210,5 +241,7 @@ export async function runAutopilotForBlog(
       status: "error",
       detail: error instanceof Error ? error.message : "Autopilot failed.",
     };
+  } finally {
+    await releaseRunLock(admin, blog.id, lockToken, lockSupported);
   }
 }
