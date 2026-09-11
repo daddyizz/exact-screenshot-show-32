@@ -43,7 +43,7 @@ function imageStyleInstruction(blog: any) {
   }
 }
 
-async function consumeUsage(kind: "draft" | "image", userId: string) {
+async function resolveEntitlement(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
   const userResult = await admin.auth.admin.getUserById(userId);
@@ -67,8 +67,14 @@ async function consumeUsage(kind: "draft" | "image", userId: string) {
   const rawPlan = dbPlan ?? metadataPlan ?? (isAdmin ? "pro" : "free");
   const status = dbStatus ?? metadataStatus ?? "active";
   const entitled = rawPlan === "pro" && ["active", "trialing"].includes(status);
+  return { entitled, app, admin };
+}
+
+async function consumeUsage(kind: "draft" | "image", userId: string) {
+  const { entitled, app, admin } = await resolveEntitlement(userId);
 
   if (kind === "image" && !entitled) throw new Error("AI cover images are available on the Pro plan.");
+
 
   const fn = kind === "draft" ? "consume_ai_draft_usage" : "consume_ai_image_usage";
   const rpc = await admin.rpc(fn, { p_user_id: userId });
