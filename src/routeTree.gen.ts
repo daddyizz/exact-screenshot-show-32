@@ -41,6 +41,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as AuthenticatedAdminOperationsRouteImport } from './routes/_authenticated/admin.operations'
 import { Route as AuthenticatedBloggerCallbackRouteImport } from './routes/_authenticated/blogger.callback'
+import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 import { Route as ApiPublicCronAutopilotRouteImport } from './routes/api/public/cron/autopilot'
 import { Route as ApiPublicPostImagePostIdRouteImport } from './routes/api/public/post-image/$postId'
@@ -211,6 +212,11 @@ const AuthenticatedBloggerCallbackRoute =
     path: '/blogger/callback',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicAdEventRoute = ApiPublicAdEventRouteImport.update({
+  id: '/api/public/ad-event',
+  path: '/api/public/ad-event',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   id: '/api/public/stripe-webhook',
   path: '/api/public/stripe-webhook',
@@ -259,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByTo {
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/operations': typeof AuthenticatedAdminOperationsRoute
   '/_authenticated/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
+  '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
@@ -369,6 +378,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/operations'
     | '/blogger/callback'
+    | '/api/public/ad-event'
     | '/api/public/stripe-webhook'
     | '/admin/'
     | '/api/public/cron/autopilot'
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/operations'
     | '/blogger/callback'
+    | '/api/public/ad-event'
     | '/api/public/stripe-webhook'
     | '/admin'
     | '/api/public/cron/autopilot'
@@ -440,6 +451,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/operations'
     | '/_authenticated/blogger/callback'
+    | '/api/public/ad-event'
     | '/api/public/stripe-webhook'
     | '/_authenticated/admin/'
     | '/api/public/cron/autopilot'
@@ -457,6 +469,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   SitemapXmlRoute: typeof SitemapXmlRoute
+  ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   ApiPublicCronAutopilotRoute: typeof ApiPublicCronAutopilotRoute
   ApiPublicPostImagePostIdRoute: typeof ApiPublicPostImagePostIdRoute
@@ -688,6 +701,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBloggerCallbackRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/ad-event': {
+      id: '/api/public/ad-event'
+      path: '/api/public/ad-event'
+      fullPath: '/api/public/ad-event'
+      preLoaderRoute: typeof ApiPublicAdEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/stripe-webhook': {
       id: '/api/public/stripe-webhook'
       path: '/api/public/stripe-webhook'
@@ -794,6 +814,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   SitemapXmlRoute: SitemapXmlRoute,
+  ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   ApiPublicCronAutopilotRoute: ApiPublicCronAutopilotRoute,
   ApiPublicPostImagePostIdRoute: ApiPublicPostImagePostIdRoute,
