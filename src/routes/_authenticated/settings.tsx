@@ -55,8 +55,8 @@ function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [blogId, setBlogId] = useState<string>("");
 
-  const googleAvatar = (user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture ?? null) as string | null;
-  const googleName = (user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? "") as string;
+  const googleAvatar = (user?.user_metadata?.['avatar_url'] ?? user?.user_metadata?.['picture'] ?? null) as string | null;
+  const googleName = (user?.user_metadata?.['full_name'] ?? user?.user_metadata?.['name'] ?? "") as string;
 
   const profileQuery = useQuery({
     queryKey: ["profile", user?.id],

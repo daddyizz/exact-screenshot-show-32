@@ -53,6 +53,109 @@ export type Database = {
         }
         Relationships: []
       }
+      ad_daily_stats: {
+        Row: {
+          clicks: number
+          impressions: number
+          placement_id: string
+          stat_date: string
+          updated_at: string
+        }
+        Insert: {
+          clicks?: number
+          impressions?: number
+          placement_id: string
+          stat_date?: string
+          updated_at?: string
+        }
+        Update: {
+          clicks?: number
+          impressions?: number
+          placement_id?: string
+          stat_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_daily_stats_placement_id_fkey"
+            columns: ["placement_id"]
+            isOneToOne: false
+            referencedRelation: "ad_placements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_placements: {
+        Row: {
+          body: string | null
+          created_at: string
+          cta_label: string
+          headline: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          opens_new_tab: boolean
+          slot_key: string
+          target_url: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          cta_label?: string
+          headline: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          opens_new_tab?: boolean
+          slot_key: string
+          target_url: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          cta_label?: string
+          headline?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          opens_new_tab?: boolean
+          slot_key?: string
+          target_url?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      autopilot_run_locks: {
+        Row: {
+          blog_id: string
+          lock_token: string
+          locked_at: string
+        }
+        Insert: {
+          blog_id: string
+          lock_token: string
+          locked_at?: string
+        }
+        Update: {
+          blog_id?: string
+          lock_token?: string
+          locked_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_run_locks_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: true
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       autopilot_runs: {
         Row: {
           blog_id: string | null
@@ -162,6 +265,10 @@ export type Database = {
       }
       blogs: {
         Row: {
+          ai_image_aspect_ratio: string
+          ai_image_custom_height: number | null
+          ai_image_custom_width: number | null
+          ai_image_style: string
           article_length: number
           autopilot: boolean
           autopilot_auto_publish: boolean
@@ -180,6 +287,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_image_aspect_ratio?: string
+          ai_image_custom_height?: number | null
+          ai_image_custom_width?: number | null
+          ai_image_style?: string
           article_length?: number
           autopilot?: boolean
           autopilot_auto_publish?: boolean
@@ -198,6 +309,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_image_aspect_ratio?: string
+          ai_image_custom_height?: number | null
+          ai_image_custom_width?: number | null
+          ai_image_style?: string
           article_length?: number
           autopilot?: boolean
           autopilot_auto_publish?: boolean
@@ -212,6 +327,36 @@ export type Database = {
           posts_per_week?: number
           target_country?: string
           tone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      monthly_usage: {
+        Row: {
+          ai_drafts: number
+          ai_images: number
+          autopilot_runs: number
+          created_at: string
+          period_start: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_drafts?: number
+          ai_images?: number
+          autopilot_runs?: number
+          created_at?: string
+          period_start: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_drafts?: number
+          ai_images?: number
+          autopilot_runs?: number
+          created_at?: string
+          period_start?: string
           updated_at?: string
           user_id?: string
         }
@@ -312,6 +457,66 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_webhook_events: {
+        Row: {
+          event_id: string
+          event_type: string
+          processed_at: string
+        }
+        Insert: {
+          event_id: string
+          event_type: string
+          processed_at?: string
+        }
+        Update: {
+          event_id?: string
+          event_type?: string
+          processed_at?: string
+        }
+        Relationships: []
+      }
+      user_notifications: {
+        Row: {
+          action_label: string | null
+          action_url: string | null
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          message: string
+          read_at: string | null
+          severity: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          action_label?: string | null
+          action_url?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          message: string
+          read_at?: string | null
+          severity?: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          action_label?: string | null
+          action_url?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          message?: string
+          read_at?: string | null
+          severity?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -333,11 +538,104 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          billing_provider: string
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          plan: string
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_provider?: string
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          plan?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_provider?: string
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          plan?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      website_diagnostics: {
+        Row: {
+          created_at: string
+          element: string | null
+          event_type: string
+          id: string
+          message: string | null
+          metadata: Json
+          page_url: string | null
+          route: string | null
+          route_path: string | null
+          severity: string
+          stack: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          element?: string | null
+          event_type: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          page_url?: string | null
+          route?: string | null
+          route_path?: string | null
+          severity?: string
+          stack?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          element?: string | null
+          event_type?: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          page_url?: string | null
+          route?: string | null
+          route_path?: string | null
+          severity?: string
+          stack?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      acquire_autopilot_run_lock: {
+        Args: { p_blog_id: string; p_stale_after_minutes?: number }
+        Returns: string
+      }
+      consume_ai_draft_usage: { Args: { p_user_id: string }; Returns: number }
+      consume_ai_image_usage: { Args: { p_user_id: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -345,6 +643,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_ad_event: {
+        Args: { p_event: string; p_placement_id: string }
+        Returns: undefined
+      }
+      refund_ai_draft_usage: { Args: { p_user_id: string }; Returns: undefined }
+      refund_ai_image_usage: { Args: { p_user_id: string }; Returns: undefined }
+      release_autopilot_run_lock: {
+        Args: { p_blog_id: string; p_lock_token: string }
+        Returns: boolean
+      }
+      resolve_effective_plan: { Args: { p_user_id: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

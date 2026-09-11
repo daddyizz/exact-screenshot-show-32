@@ -4,7 +4,7 @@ import { AUTOPILOT_LOCKED_DETAIL, isBlogDue, runAutopilotForBlog, type Autopilot
 import { writeActivity, writeAutopilotRun } from "@/lib/operations.server";
 
 async function authenticateAutopilotCron(request: Request) {
-  const customSecret = process.env.BLOGPILOT_CRON_SECRET;
+  const customSecret = process.env['BLOGPILOT_CRON_SECRET'];
   if (customSecret) {
     const match = /^Bearer ([^\s,]+)$/.exec(request.headers.get("authorization") ?? "");
     const token = match?.[1];
