@@ -15,6 +15,35 @@ function missingDiagnosticsSchema(error: any) {
   return message.includes("website_diagnostics") || message.includes("schema cache") || message.includes("does not exist") || message.includes("could not find the table");
 }
 
+async function getRetrySafety(admin: any, run: any) {
+  const laterSuccess = await admin
+    .from("autopilot_runs")
+    .select("id,status,created_at")
+    .eq("blog_id", run.blog_id)
+    .in("status", ["drafted", "published"])
+    .gt("created_at", run.created_at)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (laterSuccess.error) throw new Error(laterSuccess.error.message);
+
+  const retryEvents = await admin
+    .from("activity_logs")
+    .select("id")
+    .eq("event_type", "autopilot.admin_retry")
+    .contains("metadata", { originalRunId: run.id });
+  if (retryEvents.error && !missingObservabilitySchema(retryEvents.error)) throw new Error(retryEvents.error.message);
+  const retryCount = retryEvents.error ? 0 : (retryEvents.data?.length ?? 0);
+
+  if (laterSuccess.data) {
+    return { retryable: false, reason: "A later Autopilot run already recovered this blog.", retryCount };
+  }
+  if (retryCount >= 3) {
+    return { retryable: false, reason: "Retry limit reached for this failed run (3 attempts).", retryCount };
+  }
+  return { retryable: true, reason: null, retryCount };
+}
+
 export const retryAutopilotRun = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => z.object({ runId: z.string().uuid(), origin: z.string().url().optional() }).parse(data))
@@ -22,10 +51,14 @@ export const retryAutopilotRun = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
-    const { data: run, error: runError } = await admin.from("autopilot_runs").select("id,user_id,blog_id,status").eq("id", data.runId).maybeSingle();
+    const { data: run, error: runError } = await admin.from("autopilot_runs").select("id,user_id,blog_id,status,created_at").eq("id", data.runId).maybeSingle();
     if (runError) throw new Error(runError.message);
     if (!run) throw new Error("Autopilot run not found");
     if (run.status !== "error") throw new Error("Only failed Autopilot runs can be retried.");
+
+    const safety = await getRetrySafety(admin, run);
+    if (!safety.retryable) throw new Error(safety.reason ?? "This retry is no longer available.");
+
     const { data: blog, error: blogError } = await admin.from("blogs").select("*").eq("id", run.blog_id).maybeSingle();
     if (blogError) throw new Error(blogError.message);
     if (!blog) throw new Error("Blog no longer exists");
@@ -34,7 +67,7 @@ export const retryAutopilotRun = createServerFn({ method: "POST" })
     const outcome = await runAutopilotForBlog(admin, blog, data.origin);
     await admin.from("blogs").update({ autopilot_last_run_at: new Date().toISOString() }).eq("id", blog.id);
     await writeAutopilotRun(admin, { userId: run.user_id ?? blog.user_id, blogId: blog.id, postId: outcome.postId ?? null, triggerSource: "manual", status: outcome.status, detail: `Admin retry: ${outcome.detail}`, publishedUrl: outcome.url ?? null, startedAt });
-    await writeActivity(admin, { userId: run.user_id ?? blog.user_id, actorUserId: context.userId, eventType: "autopilot.admin_retry", entityType: "blog", entityId: blog.id, status: outcome.status === "error" ? "failed" : "success", message: outcome.detail, metadata: { originalRunId: run.id, outcome: outcome.status } });
+    await writeActivity(admin, { userId: run.user_id ?? blog.user_id, actorUserId: context.userId, eventType: "autopilot.admin_retry", entityType: "blog", entityId: blog.id, status: outcome.status === "error" ? "failed" : "success", message: outcome.detail, metadata: { originalRunId: run.id, outcome: outcome.status, attempt: safety.retryCount + 1 } });
     if (outcome.status === "error") await createNotification(admin, { userId: run.user_id ?? blog.user_id, type: "autopilot.failed", title: "Autopilot needs attention", message: outcome.detail, severity: "error", actionUrl: "/dashboard", actionLabel: "Open dashboard", dedupeKey: `autopilot-failed:${blog.id}` });
     else await createNotification(admin, { userId: run.user_id ?? blog.user_id, type: "autopilot.recovered", title: "Autopilot recovered", message: `${blog.name}: ${outcome.detail}`, severity: "success", actionUrl: "/articles", actionLabel: "View content", dedupeKey: `autopilot-failed:${blog.id}` });
     return outcome;
@@ -86,6 +119,25 @@ export const getOperationsDashboard = createServerFn({ method: "GET" })
     const recentErrors = runs.filter((r: any) => r.status === "error").slice(0, 20).length;
     const recentWebsiteIssues = diagnostics.filter((d: any) => d.severity === "error" || d.severity === "warning").slice(0, 50).length;
 
+    const retryCounts = new Map<string, number>();
+    for (const item of activities) {
+      if (item.event_type !== "autopilot.admin_retry") continue;
+      const originalRunId = item.metadata?.originalRunId;
+      if (typeof originalRunId === "string") retryCounts.set(originalRunId, (retryCounts.get(originalRunId) ?? 0) + 1);
+    }
+
+    const decoratedRuns = runs.map((r: any) => {
+      const hasLaterRecovery = runs.some((later: any) => later.blog_id === r.blog_id && ["drafted", "published"].includes(later.status) && new Date(later.created_at).getTime() > new Date(r.created_at).getTime());
+      const retryCount = retryCounts.get(r.id) ?? 0;
+      return {
+        ...r,
+        blogName: blogMap.get(r.blog_id) ?? "Unknown blog",
+        retryCount,
+        retryable: r.status === "error" && !hasLaterRecovery && retryCount < 3,
+        retryBlockedReason: hasLaterRecovery ? "Recovered by a later run" : retryCount >= 3 ? "Retry limit reached" : null,
+      };
+    });
+
     return {
       observabilityReady,
       diagnosticsReady,
@@ -105,7 +157,7 @@ export const getOperationsDashboard = createServerFn({ method: "GET" })
         recentWebsiteIssues,
         lastContentUpdate: posts.data?.[0]?.updated_at ?? null,
       },
-      runs: runs.map((r: any) => ({ ...r, blogName: blogMap.get(r.blog_id) ?? "Unknown blog" })),
+      runs: decoratedRuns,
       activities,
       diagnostics,
     };
