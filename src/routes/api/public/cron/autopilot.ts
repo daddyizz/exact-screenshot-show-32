@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
-import { isBlogDue, runAutopilotForBlog, type AutopilotOutcome } from "@/lib/autopilot.server";
+import { AUTOPILOT_LOCKED_DETAIL, isBlogDue, runAutopilotForBlog, type AutopilotOutcome } from "@/lib/autopilot.server";
 import { writeActivity, writeAutopilotRun } from "@/lib/operations.server";
 
 async function authenticateAutopilotCron(request: Request) {
@@ -57,25 +57,30 @@ async function handle(request: Request) {
 
     await writeActivity(supabaseAdmin, {
       userId: blog.user_id ?? null,
-      eventType: `autopilot.${outcome.status}`,
+      eventType: outcome.detail === AUTOPILOT_LOCKED_DETAIL ? "autopilot.locked" : `autopilot.${outcome.status}`,
       entityType: "blog",
       entityId: blog.id,
       status: outcome.status === "error" ? "failed" : outcome.status === "skipped" ? "info" : "success",
       message: outcome.status === "error"
         ? `Scheduled Autopilot failed: ${outcome.detail}`
-        : `Scheduled Autopilot ${outcome.status}`,
+        : outcome.detail === AUTOPILOT_LOCKED_DETAIL
+          ? "Scheduled Autopilot skipped because another run is already in progress"
+          : `Scheduled Autopilot ${outcome.status}`,
       metadata: {
         triggerSource: "scheduled",
         blogName: blog.name ?? null,
         postId: outcome.postId ?? null,
         publishedUrl: outcome.url ?? null,
+        locked: outcome.detail === AUTOPILOT_LOCKED_DETAIL,
       },
     });
 
-    await supabaseAdmin
-      .from("blogs")
-      .update({ autopilot_last_run_at: new Date().toISOString() })
-      .eq("id", blog.id);
+    if (outcome.detail !== AUTOPILOT_LOCKED_DETAIL) {
+      await supabaseAdmin
+        .from("blogs")
+        .update({ autopilot_last_run_at: new Date().toISOString() })
+        .eq("id", blog.id);
+    }
   }
 
   return Response.json({ checked: blogs?.length ?? 0, due: due.length, ran: results.length, results });
