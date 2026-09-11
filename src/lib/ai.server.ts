@@ -56,12 +56,11 @@ export async function generateImage(
     modalities: ["image", "text"],
   };
 
-  // Prompt text is only a creative hint; it does not guarantee output geometry.
-  // Send the preset ratio as an explicit image-generation parameter as well.
   if (requestedAspectRatio) {
     body.response_format = {
-      type: "image",
-      aspect_ratio: requestedAspectRatio,
+      image: {
+        aspect_ratio: requestedAspectRatio,
+      },
     };
   }
 
