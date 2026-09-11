@@ -33,7 +33,8 @@ async function handle(request: Request) {
   const { data: blogs, error } = await supabaseAdmin
     .from("blogs")
     .select("*")
-    .eq("autopilot", true);
+    .eq("autopilot", true)
+    .is("deleted_at", null);
   if (error) return new Response(error.message, { status: 500 });
 
   const due = (blogs ?? []).filter(isBlogDue).slice(0, 5);
