@@ -125,14 +125,20 @@ export const generateTopics = createServerFn({ method: "POST" })
     const { data: existing } = await supabase.from("posts").select("title").eq("blog_id", data.blogId).limit(100);
     const taken = (existing ?? []).map((p) => p.title);
     const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
+    const { entitled } = await resolveEntitlement(userId);
+    const metaKeywords = String((blog as any).meta_description_keywords ?? "").trim();
+    const metaInstruction = entitled
+      ? `\n"meta_description": string (max 150 chars${metaKeywords ? `, naturally include these keywords: ${metaKeywords}` : ""}),`
+      : "";
     try {
       const raw = await chatComplete([
         { role: "system", content: "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences." },
-        { role: "user", content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated, 3-6 terms)}` },
+        { role: "user", content: `${blogContext(blog)}\n\nPropose ${data.count} new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars),${metaInstruction} "keywords": string (comma separated, 3-6 terms)}` },
       ]);
       const ideas = extractJson<Array<{ title: string; outline?: string; seo_title?: string; meta_description?: string; keywords?: string }>>(raw);
       const lowerTaken = new Set(taken.map((t) => t.trim().toLowerCase()));
-      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({ user_id: userId, blog_id: data.blogId, title: idea.title.trim(), slug: slugifyServer(idea.title), outline: idea.outline ?? null, seo_title: idea.seo_title ?? null, meta_description: meta150(idea.meta_description), keywords: idea.keywords ?? null, status: "idea" }));
+      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({ user_id: userId, blog_id: data.blogId, title: idea.title.trim(), slug: slugifyServer(idea.title), outline: idea.outline ?? null, seo_title: idea.seo_title ?? null, meta_description: entitled ? meta150(idea.meta_description) : null, keywords: idea.keywords ?? null, status: "idea" }));
+
       if (rows.length === 0) {
         await writeActivity(admin,{userId,eventType:"ai.topics_generated",entityType:"blog",entityId:data.blogId,status:"info",message:"AI topic planning completed with no new topics",metadata:{requested:data.count,inserted:0}});
         return { inserted: 0 };
