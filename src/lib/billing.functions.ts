@@ -4,8 +4,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { writeActivity } from "./operations.server";
 
 function stripeConfig() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  const proPriceId = process.env.STRIPE_PRO_PRICE_ID;
+  const secretKey = process.env['STRIPE_SECRET_KEY'];
+  const proPriceId = process.env['STRIPE_PRO_PRICE_ID'];
   if (!secretKey) throw new Error("Stripe is not configured yet: missing STRIPE_SECRET_KEY.");
   if (!proPriceId) throw new Error("Stripe is not configured yet: missing STRIPE_PRO_PRICE_ID.");
   return { secretKey, proPriceId };

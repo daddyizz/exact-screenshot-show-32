@@ -21,11 +21,11 @@ function stripePeriodEnd(object: any) {
 }
 
 async function refreshStripeSubscription(admin: any, row: any, userId: string) {
-  if (row?.billing_provider !== "stripe" || !row?.provider_subscription_id || !process.env.STRIPE_SECRET_KEY) return row;
+  if (row?.billing_provider !== "stripe" || !row?.provider_subscription_id || !process.env['STRIPE_SECRET_KEY']) return row;
 
   try {
     const response = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(row.provider_subscription_id)}`, {
-      headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
+      headers: { Authorization: `Bearer ${process.env['STRIPE_SECRET_KEY']}` },
     });
     if (!response.ok) return row;
 
