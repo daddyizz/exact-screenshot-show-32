@@ -1,3 +1,5 @@
+import { PNG } from "pngjs";
+
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
 const IMAGE_MODEL = "google/gemini-2.5-flash-image-preview";
@@ -34,14 +36,58 @@ export async function chatComplete(messages: ChatMessage[]): Promise<string> {
 
 export type ImageAspectRatio = "16:9" | "4:3" | "1:1";
 
-function inferImageAspectRatio(prompt: string): ImageAspectRatio | undefined {
-  if (/\b16\s*:\s*9\b/i.test(prompt)) return "16:9";
-  if (/\b4\s*:\s*3\b/i.test(prompt)) return "4:3";
-  if (/\b1\s*:\s*1\b/i.test(prompt) || /\bsquare\b/i.test(prompt)) return "1:1";
+function inferTargetAspect(prompt: string): number | undefined {
+  const custom = /\b(\d{3,4})\s*x\s*(\d{3,4})\b/i.exec(prompt);
+  if (custom) {
+    const width = Number(custom[1]);
+    const height = Number(custom[2]);
+    if (width > 0 && height > 0) return width / height;
+  }
+  if (/\b16\s*:\s*9\b/i.test(prompt)) return 16 / 9;
+  if (/\b4\s*:\s*3\b/i.test(prompt)) return 4 / 3;
+  if (/\b1\s*:\s*1\b/i.test(prompt) || /\bsquare\b/i.test(prompt)) return 1;
   return undefined;
 }
 
-/** Generate an image via the AI gateway. Returns a base64 data URL. */
+function cropPngToAspect(dataUrl: string, targetAspect?: number): string {
+  if (!targetAspect || !dataUrl.startsWith("data:image/png;base64,")) return dataUrl;
+
+  try {
+    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    const source = PNG.sync.read(Buffer.from(base64, "base64"));
+    const sourceAspect = source.width / source.height;
+    if (Math.abs(sourceAspect - targetAspect) < 0.002) return dataUrl;
+
+    let cropWidth = source.width;
+    let cropHeight = source.height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (sourceAspect > targetAspect) {
+      cropWidth = Math.max(1, Math.floor(source.height * targetAspect));
+      offsetX = Math.floor((source.width - cropWidth) / 2);
+    } else {
+      cropHeight = Math.max(1, Math.floor(source.width / targetAspect));
+      offsetY = Math.floor((source.height - cropHeight) / 2);
+    }
+
+    const output = new PNG({ width: cropWidth, height: cropHeight });
+    for (let y = 0; y < cropHeight; y += 1) {
+      const sourceStart = ((offsetY + y) * source.width + offsetX) * 4;
+      const sourceEnd = sourceStart + cropWidth * 4;
+      const targetStart = y * cropWidth * 4;
+      source.data.copy(output.data, targetStart, sourceStart, sourceEnd);
+    }
+
+    const encoded = PNG.sync.write(output);
+    return `data:image/png;base64,${encoded.toString("base64")}`;
+  } catch (error) {
+    console.error("AI image ratio crop failed; returning original image", error);
+    return dataUrl;
+  }
+}
+
+/** Generate an image via the Lovable AI gateway. Returns a base64 data URL. */
 export async function generateImage(
   prompt: string,
   options?: { aspectRatio?: ImageAspectRatio },
@@ -49,28 +95,28 @@ export async function generateImage(
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new Error("AI is not configured for this project yet.");
 
-  const requestedAspectRatio = options?.aspectRatio ?? inferImageAspectRatio(prompt);
-  const body: Record<string, unknown> = {
-    model: IMAGE_MODEL,
-    messages: [{ role: "user", content: prompt }],
-    modalities: ["image", "text"],
-  };
+  const explicitAspect = options?.aspectRatio === "16:9"
+    ? 16 / 9
+    : options?.aspectRatio === "4:3"
+      ? 4 / 3
+      : options?.aspectRatio === "1:1"
+        ? 1
+        : undefined;
+  const targetAspect = explicitAspect ?? inferTargetAspect(prompt);
 
-  if (requestedAspectRatio) {
-    body.response_format = {
-      image: {
-        aspect_ratio: requestedAspectRatio,
-      },
-    };
-  }
-
+  // This gateway's chat/completions image-model route rejects response_format.
+  // Generate normally, then enforce BlogPilot's requested geometry locally.
   const response = await fetch(GATEWAY_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: IMAGE_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      modalities: ["image", "text"],
+    }),
   });
 
   if (response.status === 429) throw new Error("AI rate limit reached. Try again in a moment.");
@@ -87,7 +133,7 @@ export async function generateImage(
   };
   const dataUrl = payload.choices?.[0]?.message?.images?.[0]?.image_url?.url;
   if (!dataUrl?.startsWith("data:image/")) throw new Error("The AI returned no image.");
-  return dataUrl;
+  return cropPngToAspect(dataUrl, targetAspect);
 }
 
 function normalizeJsonControlCharacters(input: string) {
