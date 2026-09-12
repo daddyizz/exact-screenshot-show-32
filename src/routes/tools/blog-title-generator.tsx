@@ -32,7 +32,7 @@ function TitleGeneratorPage() {
   const run = useServerFn(generateBlogTitles);
 
   const mutation = useMutation({
-    mutationFn: (input: { topic: string; audience?: string }) => run({ data: input }),
+    mutationFn: (input: { topic: string; audience?: string | undefined }) => run({ data: input }),
     onSuccess: (result) => setIdeas(result.ideas),
     onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Something went wrong."),
   });
@@ -97,7 +97,7 @@ function TitleGeneratorPage() {
         </div>
       )}
 
-      <AdSlot slot="tool-blog-title-generator" className="my-10" />
+      <AdSlot id="tool-blog-title-generator" className="my-10" />
 
       <h2>How to pick the right title</h2>
       <p>A good blog title makes one promise a reader can verify at a glance. Before choosing one of the ideas above, check it against the article you can genuinely write: does the page deliver the outcome the title suggests, and is that outcome different from your other posts?</p>

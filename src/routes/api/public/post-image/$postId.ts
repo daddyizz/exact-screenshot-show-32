@@ -124,7 +124,7 @@ export const Route = createFileRoute("/api/public/post-image/$postId")({
         try {
           const input = Buffer.from(await data.arrayBuffer());
           const processed = processImage(input, aspect);
-          return new Response(processed.bytes, {
+          return new Response(new Uint8Array(processed.bytes) as unknown as BodyInit, {
             headers: {
               "Content-Type": processed.contentType,
               "Cache-Control": "no-store, max-age=0",

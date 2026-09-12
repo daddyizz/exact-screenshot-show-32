@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { completeSearchConsoleAuth } from "@/lib/search-console.functions";
 
-type Search = { code?: string; state?: string; error?: string };
+type Search = { code?: string | undefined; state?: string | undefined; error?: string | undefined };
 
 export const Route = createFileRoute("/_authenticated/admin/search-console/callback")({
   validateSearch: (search: Record<string, unknown>): Search => ({
