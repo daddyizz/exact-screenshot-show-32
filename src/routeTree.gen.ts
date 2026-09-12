@@ -38,6 +38,7 @@ import { Route as GuidesSeoContentBriefRouteImport } from './routes/guides/seo-c
 import { Route as GuidesSeoContentPlanRouteImport } from './routes/guides/seo-content-plan'
 import { Route as GuidesUpdateOldBlogPostsRouteImport } from './routes/guides/update-old-blog-posts'
 import { Route as SitemapXmlRouteImport } from './routes/sitemap.xml'
+import { Route as ToolsBlogTitleGeneratorRouteImport } from './routes/tools/blog-title-generator'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as AuthenticatedAdminOperationsRouteImport } from './routes/_authenticated/admin.operations'
@@ -198,6 +199,11 @@ const SitemapXmlRoute = SitemapXmlRouteImport.update({
   path: '/sitemap/xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ToolsBlogTitleGeneratorRoute = ToolsBlogTitleGeneratorRouteImport.update({
+  id: '/tools/blog-title-generator',
+  path: '/tools/blog-title-generator',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -282,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/guides/seo-content-plan': typeof GuidesSeoContentPlanRoute
   '/guides/update-old-blog-posts': typeof GuidesUpdateOldBlogPostsRoute
   '/sitemap/xml': typeof SitemapXmlRoute
+  '/tools/blog-title-generator': typeof ToolsBlogTitleGeneratorRoute
   '/guides/': typeof GuidesIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
@@ -320,6 +327,7 @@ export interface FileRoutesByTo {
   '/guides/seo-content-plan': typeof GuidesSeoContentPlanRoute
   '/guides/update-old-blog-posts': typeof GuidesUpdateOldBlogPostsRoute
   '/sitemap/xml': typeof SitemapXmlRoute
+  '/tools/blog-title-generator': typeof ToolsBlogTitleGeneratorRoute
   '/guides': typeof GuidesIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
@@ -362,6 +370,7 @@ export interface FileRoutesById {
   '/guides/seo-content-plan': typeof GuidesSeoContentPlanRoute
   '/guides/update-old-blog-posts': typeof GuidesUpdateOldBlogPostsRoute
   '/sitemap/xml': typeof SitemapXmlRoute
+  '/tools/blog-title-generator': typeof ToolsBlogTitleGeneratorRoute
   '/guides/': typeof GuidesIndexRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/operations': typeof AuthenticatedAdminOperationsRoute
@@ -404,6 +413,7 @@ export interface FileRouteTypes {
     | '/guides/seo-content-plan'
     | '/guides/update-old-blog-posts'
     | '/sitemap/xml'
+    | '/tools/blog-title-generator'
     | '/guides/'
     | '/admin/ads'
     | '/admin/operations'
@@ -442,6 +452,7 @@ export interface FileRouteTypes {
     | '/guides/seo-content-plan'
     | '/guides/update-old-blog-posts'
     | '/sitemap/xml'
+    | '/tools/blog-title-generator'
     | '/guides'
     | '/admin/ads'
     | '/admin/operations'
@@ -483,6 +494,7 @@ export interface FileRouteTypes {
     | '/guides/seo-content-plan'
     | '/guides/update-old-blog-posts'
     | '/sitemap/xml'
+    | '/tools/blog-title-generator'
     | '/guides/'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/operations'
@@ -507,6 +519,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   SitemapXmlRoute: typeof SitemapXmlRoute
+  ToolsBlogTitleGeneratorRoute: typeof ToolsBlogTitleGeneratorRoute
   ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   ApiPublicCronAutopilotRoute: typeof ApiPublicCronAutopilotRoute
@@ -718,6 +731,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapXmlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tools/blog-title-generator': {
+      id: '/tools/blog-title-generator'
+      path: '/tools/blog-title-generator'
+      fullPath: '/tools/blog-title-generator'
+      preLoaderRoute: typeof ToolsBlogTitleGeneratorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -893,6 +913,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   SitemapXmlRoute: SitemapXmlRoute,
+  ToolsBlogTitleGeneratorRoute: ToolsBlogTitleGeneratorRoute,
   ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   ApiPublicCronAutopilotRoute: ApiPublicCronAutopilotRoute,
