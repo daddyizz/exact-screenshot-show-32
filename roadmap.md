@@ -30,3 +30,5 @@
 - Enforce had bilangan blog (Free 1 / Pro 5) pada database auth asal melalui trigger migration; AI dan Autopilot sudah mempunyai server-side plan enforcement
 - Paparkan plan/usage ringkas pada dashboard pengguna
 - Audit end-to-end live selepas sync: invite/edit/delete user, manual Free/Pro, AI draft limit, AI image Pro, Autopilot Pro, Blogger publish
+- Halaman alat percuma /tools/blog-title-generator (SEO growth)
+- Agent integrations (MCP) dalam app
