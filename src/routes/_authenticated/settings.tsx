@@ -224,7 +224,7 @@ function SettingsPage() {
         {!selected ? (
           <p className="text-sm text-muted-foreground">Create a blog on the overview page to configure automation defaults.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div key={selected.id} className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Niche</Label>
               <Select value={selected.niche} onValueChange={(v) => saveBlog.mutate({ niche: v })}>
