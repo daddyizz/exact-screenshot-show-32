@@ -105,7 +105,14 @@ function AdminPage() {
   const roleMutation = useMutation({
     mutationFn: (vars: { userId: string; role: "admin" | "moderator"; grant: boolean }) =>
       setRoleFn({ data: vars }),
-    onSuccess: async () => {
+    onSuccess: async (_result, vars) => {
+      setEditUser((current) => {
+        if (!current || current.id !== vars.userId) return current;
+        const roles = vars.grant
+          ? Array.from(new Set([...current.roles, vars.role]))
+          : current.roles.filter((role) => role !== vars.role);
+        return { ...current, roles };
+      });
       toast.success("Role updated");
       await refresh();
     },
@@ -264,7 +271,7 @@ function AdminPage() {
               <div className="space-y-2"><Label>Plan</Label><Select value={edit.plan} onValueChange={(v) => setEdit({ ...edit, plan: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="pro">Pro</SelectItem></SelectContent></Select></div>
               <div className="space-y-2"><Label>Status</Label><Select value={edit.status} onValueChange={(v) => setEdit({ ...edit, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="trialing">Trialing</SelectItem><SelectItem value="past_due">Past due</SelectItem><SelectItem value="canceled">Canceled</SelectItem><SelectItem value="suspended">Suspended</SelectItem></SelectContent></Select></div>
             </div>
-            {editUser && <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => roleMutation.mutate({ userId: editUser.id, role: "admin", grant: !editUser.roles.includes("admin") })}>{editUser.roles.includes("admin") ? "Remove admin" : "Make admin"}</Button><Button type="button" variant="outline" onClick={() => roleMutation.mutate({ userId: editUser.id, role: "moderator", grant: !editUser.roles.includes("moderator") })}>{editUser.roles.includes("moderator") ? "Remove moderator" : "Make moderator"}</Button></div>}
+            {editUser && <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={roleMutation.isPending} onClick={() => roleMutation.mutate({ userId: editUser.id, role: "admin", grant: !editUser.roles.includes("admin") })}>{editUser.roles.includes("admin") ? "Remove admin" : "Make admin"}</Button><Button type="button" variant="outline" disabled={roleMutation.isPending} onClick={() => roleMutation.mutate({ userId: editUser.id, role: "moderator", grant: !editUser.roles.includes("moderator") })}>{editUser.roles.includes("moderator") ? "Remove moderator" : "Make moderator"}</Button></div>}
             {editUser ? <div className="rounded-lg border border-destructive/30 p-4"><p className="text-sm font-medium">Danger zone</p><p className="mt-1 text-xs text-muted-foreground">Deleting a user removes the authentication account and any data linked by cascade rules. Your own admin account cannot be deleted here.</p><Button type="button" variant="destructive" className="mt-3" disabled={deleteMutation.isPending} onClick={() => { if (window.confirm(`Delete ${editUser.email || editUser.displayName}? This cannot be undone.`)) deleteMutation.mutate(editUser.id); }}><Trash2 aria-hidden /> {deleteMutation.isPending ? "Deleting…" : "Delete user"}</Button></div> : null}
           </div>
           <DialogFooter><Button onClick={() => void saveEditor()} disabled={!edit.displayName.trim() || subscriptionMutation.isPending || profileMutation.isPending}>{subscriptionMutation.isPending || profileMutation.isPending ? "Saving…" : "Save changes"}</Button></DialogFooter>
