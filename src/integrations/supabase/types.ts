@@ -275,13 +275,14 @@ export type Database = {
           autopilot_last_run_at: string | null
           blog_url: string | null
           created_at: string
+          deleted_at: string | null
           id: string
           keyword_focus: string | null
           language: string
-          meta_description_keywords: string | null
           name: string
           niche: string
           posts_per_week: number
+          purge_after: string | null
           target_country: string
           tone: string
           updated_at: string
@@ -298,13 +299,14 @@ export type Database = {
           autopilot_last_run_at?: string | null
           blog_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           keyword_focus?: string | null
           language?: string
-          meta_description_keywords?: string | null
           name: string
           niche?: string
           posts_per_week?: number
+          purge_after?: string | null
           target_country?: string
           tone?: string
           updated_at?: string
@@ -321,13 +323,14 @@ export type Database = {
           autopilot_last_run_at?: string | null
           blog_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           keyword_focus?: string | null
           language?: string
-          meta_description_keywords?: string | null
           name?: string
           niche?: string
           posts_per_week?: number
+          purge_after?: string | null
           target_country?: string
           tone?: string
           updated_at?: string
@@ -457,6 +460,42 @@ export type Database = {
           display_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      search_console_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          id: string
+          refresh_token: string | null
+          selected_permission_level: string | null
+          selected_site_url: string | null
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          id?: string
+          refresh_token?: string | null
+          selected_permission_level?: string | null
+          selected_site_url?: string | null
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          id?: string
+          refresh_token?: string | null
+          selected_permission_level?: string | null
+          selected_site_url?: string | null
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -646,6 +685,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      purge_expired_deleted_blogs: { Args: never; Returns: number }
       record_ad_event: {
         Args: { p_event: string; p_placement_id: string }
         Returns: undefined
