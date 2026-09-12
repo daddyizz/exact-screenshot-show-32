@@ -31,7 +31,7 @@ export function PublicPageLayout({ eyebrow, title, description, children }: { ey
     </main>
     <footer className="border-t border-border">
       <div className="mx-auto flex max-w-5xl flex-wrap gap-x-5 gap-y-2 px-4 py-8 text-sm text-muted-foreground">
-        <Link to="/about" className="hover:text-foreground">About</Link><Link to="/guides" className="hover:text-foreground">Guides</Link><Link to="/help" className="hover:text-foreground">Help</Link><Link to="/privacy" className="hover:text-foreground">Privacy</Link><Link to="/terms" className="hover:text-foreground">Terms</Link><Link to="/contact" className="hover:text-foreground">Contact</Link><span className="ml-auto">© {new Date().getFullYear()} BlogPilot AI</span>
+        <Link to="/about" className="hover:text-foreground">About</Link><Link to="/guides" className="hover:text-foreground">Guides</Link><Link to="/tools/blog-title-generator" className="hover:text-foreground">Free title generator</Link><Link to="/help" className="hover:text-foreground">Help</Link><Link to="/privacy" className="hover:text-foreground">Privacy</Link><Link to="/terms" className="hover:text-foreground">Terms</Link><Link to="/contact" className="hover:text-foreground">Contact</Link><span className="ml-auto">© {new Date().getFullYear()} BlogPilot AI</span>
       </div>
     </footer>
   </div>;
