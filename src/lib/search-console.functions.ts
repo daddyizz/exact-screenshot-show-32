@@ -28,9 +28,6 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
 }
 
 function gscRedirectUri(requested?: string) {
-  // Prefer the browser-origin callback supplied by the current deployment.
-  // This avoids stale environment values silently sending Google back to an old
-  // route/domain and is also safer for future custom-domain migrations.
   if (requested) return requested;
   const configured = process.env["GSC_REDIRECT_URI"]?.trim();
   if (configured) return configured;
@@ -100,6 +97,10 @@ async function listGscSites(accessToken: string): Promise<GscSite[]> {
   return (payload.siteEntry ?? []).sort((a, b) => a.siteUrl.localeCompare(b.siteUrl));
 }
 
+function usableSites(sites: GscSite[]) {
+  return sites.filter((site) => site.permissionLevel !== "siteUnverifiedUser");
+}
+
 async function querySearchAnalytics(
   accessToken: string,
   siteUrl: string,
@@ -123,7 +124,9 @@ async function querySearchAnalytics(
   );
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 300);
-    throw new Error(`Search Console analytics request failed: ${detail}`);
+    const error = new Error(`Search Console analytics request failed: ${detail}`) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
   const payload = (await response.json()) as { rows?: SearchRow[] };
   return payload.rows ?? [];
@@ -191,7 +194,8 @@ export const completeSearchConsoleAuth = createServerFn({ method: "POST" })
 
     const redirectUri = gscRedirectUri(data.redirectUri);
     const tokens = await exchangeGscCode(data.code, redirectUri);
-    const sites = await listGscSites(tokens.access_token);
+    const allSites = await listGscSites(tokens.access_token);
+    const sites = usableSites(allSites);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const existing = await getAdminConnection(admin, context.userId);
@@ -217,7 +221,7 @@ export const completeSearchConsoleAuth = createServerFn({ method: "POST" })
       eventType: existing ? "gsc.reconnected" : "gsc.connected",
       entityType: "system",
       message: existing ? "Google Search Console reconnected" : "Google Search Console connected",
-      metadata: { propertyCount: sites.length, selectedSiteUrl: selected?.siteUrl ?? null },
+      metadata: { propertyCount: sites.length, hiddenUnverifiedCount: allSites.length - sites.length, selectedSiteUrl: selected?.siteUrl ?? null },
     });
 
     return { saved: true as const, sites, selectedSiteUrl: selected?.siteUrl ?? null };
@@ -250,9 +254,9 @@ export const selectSearchConsoleProperty = createServerFn({ method: "POST" })
     const admin = supabaseAdmin as any;
     const row = await getAdminConnection(admin, context.userId);
     const accessToken = await getUsableAccessToken(admin, row, context.userId);
-    const sites = await listGscSites(accessToken);
+    const sites = usableSites(await listGscSites(accessToken));
     const selected = sites.find((s) => s.siteUrl === data.siteUrl);
-    if (!selected) throw new Error("That Search Console property is no longer available to this Google account.");
+    if (!selected) throw new Error("That Search Console property is not verified or is no longer available to this Google account.");
     const { error } = await admin.from("search_console_connections").update({
       selected_site_url: selected.siteUrl,
       selected_permission_level: selected.permissionLevel,
@@ -277,12 +281,13 @@ export const getSearchConsoleDashboard = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
     const row = await getAdminConnection(admin, context.userId);
-    if (!row) return { connected: false as const, sites: [], selectedSiteUrl: null, selectedPermissionLevel: null, range: null, metrics: null, topQueries: [], topPages: [] };
+    if (!row) return { connected: false as const, sites: [], selectedSiteUrl: null, selectedPermissionLevel: null, range: null, metrics: null, topQueries: [], topPages: [], analyticsError: null };
 
     const accessToken = await getUsableAccessToken(admin, row, context.userId);
-    const sites = await listGscSites(accessToken);
+    const allSites = await listGscSites(accessToken);
+    const sites = usableSites(allSites);
     const selected = sites.find((s) => s.siteUrl === row.selected_site_url) ?? sites[0] ?? null;
-    if (!selected) return { connected: true as const, sites, selectedSiteUrl: null, selectedPermissionLevel: null, range: analyticsWindow(), metrics: null, topQueries: [], topPages: [] };
+    if (!selected) return { connected: true as const, sites, selectedSiteUrl: null, selectedPermissionLevel: null, range: analyticsWindow(), metrics: null, topQueries: [], topPages: [], analyticsError: null };
 
     if (selected.siteUrl !== row.selected_site_url) {
       await admin.from("search_console_connections").update({
@@ -293,38 +298,54 @@ export const getSearchConsoleDashboard = createServerFn({ method: "GET" })
     }
 
     const range = analyticsWindow();
-    const [totalsRows, queryRows, pageRows] = await Promise.all([
-      querySearchAnalytics(accessToken, selected.siteUrl, { ...range, rowLimit: 1 }),
-      querySearchAnalytics(accessToken, selected.siteUrl, { ...range, dimensions: ["query"], rowLimit: 10 }),
-      querySearchAnalytics(accessToken, selected.siteUrl, { ...range, dimensions: ["page"], rowLimit: 10 }),
-    ]);
-    const totals = totalsRows[0] ?? { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+    try {
+      const [totalsRows, queryRows, pageRows] = await Promise.all([
+        querySearchAnalytics(accessToken, selected.siteUrl, { ...range, rowLimit: 1 }),
+        querySearchAnalytics(accessToken, selected.siteUrl, { ...range, dimensions: ["query"], rowLimit: 10 }),
+        querySearchAnalytics(accessToken, selected.siteUrl, { ...range, dimensions: ["page"], rowLimit: 10 }),
+      ]);
+      const totals = totalsRows[0] ?? { clicks: 0, impressions: 0, ctr: 0, position: 0 };
 
-    return {
-      connected: true as const,
-      sites,
-      selectedSiteUrl: selected.siteUrl,
-      selectedPermissionLevel: selected.permissionLevel,
-      range,
-      metrics: {
-        clicks: totals.clicks ?? 0,
-        impressions: totals.impressions ?? 0,
-        ctr: totals.ctr ?? 0,
-        position: totals.position ?? 0,
-      },
-      topQueries: queryRows.map((row) => ({
-        query: row.keys?.[0] ?? "",
-        clicks: row.clicks ?? 0,
-        impressions: row.impressions ?? 0,
-        ctr: row.ctr ?? 0,
-        position: row.position ?? 0,
-      })),
-      topPages: pageRows.map((row) => ({
-        page: row.keys?.[0] ?? "",
-        clicks: row.clicks ?? 0,
-        impressions: row.impressions ?? 0,
-        ctr: row.ctr ?? 0,
-        position: row.position ?? 0,
-      })),
-    };
+      return {
+        connected: true as const,
+        sites,
+        selectedSiteUrl: selected.siteUrl,
+        selectedPermissionLevel: selected.permissionLevel,
+        range,
+        metrics: {
+          clicks: totals.clicks ?? 0,
+          impressions: totals.impressions ?? 0,
+          ctr: totals.ctr ?? 0,
+          position: totals.position ?? 0,
+        },
+        topQueries: queryRows.map((r) => ({ query: r.keys?.[0] ?? "", clicks: r.clicks ?? 0, impressions: r.impressions ?? 0, ctr: r.ctr ?? 0, position: r.position ?? 0 })),
+        topPages: pageRows.map((r) => ({ page: r.keys?.[0] ?? "", clicks: r.clicks ?? 0, impressions: r.impressions ?? 0, ctr: r.ctr ?? 0, position: r.position ?? 0 })),
+        analyticsError: null,
+      };
+    } catch (error: any) {
+      const status = Number(error?.status ?? 0);
+      const message = status === 403
+        ? "This Search Console property is listed in your Google account but does not grant enough permission to read performance data. Choose another verified property, or verify/upgrade access for this property in Google Search Console."
+        : String(error?.message ?? error);
+      await writeActivity(admin, {
+        userId: context.userId,
+        actorUserId: context.userId,
+        eventType: "gsc.analytics_failed",
+        entityType: "system",
+        status: "failed",
+        message: "Search Console analytics could not be loaded",
+        metadata: { siteUrl: selected.siteUrl, permissionLevel: selected.permissionLevel, status, error: String(error?.message ?? error).slice(0, 500) },
+      });
+      return {
+        connected: true as const,
+        sites,
+        selectedSiteUrl: selected.siteUrl,
+        selectedPermissionLevel: selected.permissionLevel,
+        range,
+        metrics: null,
+        topQueries: [],
+        topPages: [],
+        analyticsError: message,
+      };
+    }
   });
