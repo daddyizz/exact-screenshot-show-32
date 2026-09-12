@@ -28,9 +28,12 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
 }
 
 function gscRedirectUri(requested?: string) {
+  // Prefer the browser-origin callback supplied by the current deployment.
+  // This avoids stale environment values silently sending Google back to an old
+  // route/domain and is also safer for future custom-domain migrations.
+  if (requested) return requested;
   const configured = process.env["GSC_REDIRECT_URI"]?.trim();
   if (configured) return configured;
-  if (requested) return requested;
   throw new Error("Search Console is not configured yet (missing redirect URI).");
 }
 
@@ -196,7 +199,7 @@ export const completeSearchConsoleAuth = createServerFn({ method: "POST" })
       ? sites.find((s) => s.siteUrl === existing.selected_site_url)!
       : sites[0] ?? null;
 
-    const { error } = await admin.from("search_console_connections").upsert({
+    const { data: saved, error } = await admin.from("search_console_connections").upsert({
       user_id: context.userId,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token ?? existing?.refresh_token ?? null,
@@ -204,8 +207,9 @@ export const completeSearchConsoleAuth = createServerFn({ method: "POST" })
       selected_site_url: selected?.siteUrl ?? null,
       selected_permission_level: selected?.permissionLevel ?? null,
       updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" });
-    if (error) throw new Error(error.message);
+    }, { onConflict: "user_id" }).select("id,user_id,selected_site_url,selected_permission_level,token_expires_at").single();
+    if (error) throw new Error(`Search Console connection could not be saved: ${error.message}`);
+    if (!saved?.id) throw new Error("Search Console connection was not saved.");
 
     await writeActivity(admin, {
       userId: context.userId,
@@ -216,7 +220,7 @@ export const completeSearchConsoleAuth = createServerFn({ method: "POST" })
       metadata: { propertyCount: sites.length, selectedSiteUrl: selected?.siteUrl ?? null },
     });
 
-    return { sites, selectedSiteUrl: selected?.siteUrl ?? null };
+    return { saved: true as const, sites, selectedSiteUrl: selected?.siteUrl ?? null };
   });
 
 export const disconnectSearchConsole = createServerFn({ method: "POST" })
@@ -277,7 +281,7 @@ export const getSearchConsoleDashboard = createServerFn({ method: "GET" })
 
     const accessToken = await getUsableAccessToken(admin, row, context.userId);
     const sites = await listGscSites(accessToken);
-    let selected = sites.find((s) => s.siteUrl === row.selected_site_url) ?? sites[0] ?? null;
+    const selected = sites.find((s) => s.siteUrl === row.selected_site_url) ?? sites[0] ?? null;
     if (!selected) return { connected: true as const, sites, selectedSiteUrl: null, selectedPermissionLevel: null, range: analyticsWindow(), metrics: null, topQueries: [], topPages: [] };
 
     if (selected.siteUrl !== row.selected_site_url) {
