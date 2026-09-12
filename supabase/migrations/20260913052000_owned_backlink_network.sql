@@ -25,11 +25,14 @@ set search_path = public
 as $$
 declare
   candidate record;
-  best_candidate record;
   haystack text;
   score integer;
   best_score integer := 0;
   topic text;
+  best_id uuid := null;
+  best_name text := null;
+  best_url text := null;
+  best_anchor text := null;
   marker text;
 begin
   if new.body is null or btrim(new.body) = '' then
@@ -62,14 +65,17 @@ begin
 
     if score > best_score then
       best_score := score;
-      best_candidate := candidate;
+      best_id := candidate.id;
+      best_name := candidate.name;
+      best_url := candidate.url;
+      best_anchor := candidate.anchor_hint;
     end if;
   end loop;
 
-  if best_score > 0 and best_candidate.id is not null then
-    marker := '<!-- blogpilot-owned-backlink:' || best_candidate.id::text || ' -->';
+  if best_score > 0 and best_id is not null then
+    marker := '<!-- blogpilot-owned-backlink:' || best_id::text || ' -->';
     new.body := rtrim(new.body) || E'\n\n---\n\n**Further reading:** [' ||
-      coalesce(nullif(btrim(best_candidate.anchor_hint), ''), best_candidate.name) || '](' || best_candidate.url || ')' || E'\n' || marker;
+      coalesce(nullif(btrim(best_anchor), ''), best_name) || '](' || best_url || ')' || E'\n' || marker;
   end if;
 
   return new;
