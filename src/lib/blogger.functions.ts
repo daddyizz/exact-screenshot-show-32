@@ -41,6 +41,18 @@ function bloggerImageAspect(blog: any) {
   return "16 / 9";
 }
 
+function bloggerImagePaddingTop(blog: any) {
+  const ratio = blog?.ai_image_aspect_ratio ?? "16:9";
+  if (ratio === "1:1") return "100%";
+  if (ratio === "4:3") return "75%";
+  if (ratio === "custom") {
+    const width = Number(blog?.ai_image_custom_width ?? 0);
+    const height = Number(blog?.ai_image_custom_height ?? 0);
+    if (width >= 320 && height >= 320) return `${(height / width) * 100}%`;
+  }
+  return "56.25%";
+}
+
 export const getBloggerOAuthConfig = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ redirectUri: z.string().url().optional() }).parse(data ?? {})).handler(async ({ data }) => bloggerOAuthConfig(data.redirectUri));
 
 export const startBloggerAuth = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ blogId: z.string().uuid(), redirectUri: z.string().url().optional() }).parse(data)).handler(async ({ data, context }) => {
@@ -89,7 +101,8 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
   const imageVersion = Date.now();
   const imageSrc = post.image_url && data.origin ? `${data.origin}${post.image_url}${post.image_url.includes("?") ? "&" : "?"}v=${imageVersion}` : null;
   const aspect = bloggerImageAspect((post as any).blogs);
-  const imageHtml = imageSrc ? `<p style="margin:0 0 1.5em"><img src="${imageSrc}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="display:block;width:100%;max-width:100%;aspect-ratio:${aspect};object-fit:cover;height:auto" /></p>\n` : "";
+  const paddingTop = bloggerImagePaddingTop((post as any).blogs);
+  const imageHtml = imageSrc ? `<div style="position:relative;width:100%;max-width:100%;padding-top:${paddingTop};overflow:hidden;margin:0 0 1.5em"><img src="${imageSrc}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover!important;margin:0!important" /></div>\n` : "";
   const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(post.body), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
   const hadExistingPost = Boolean(post.blogger_post_id); let recoveredMissingPost = false; let published: { id: string; url: string };
   try {
