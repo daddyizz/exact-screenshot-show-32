@@ -90,8 +90,8 @@ function TitleGeneratorPage() {
           ))}
           <div className="rounded-xl border border-primary/30 bg-accent/30 p-5">
             <p className="text-sm text-foreground">Want these turned into full drafts and published to your blog automatically?</p>
-            <Button className="mt-3" asChild>
-              <Link to="/auth" search={{ next: undefined }}>Start free with BlogPilot AI</Link>
+            <Button className="mt-3 text-primary-foreground [&_a]:text-primary-foreground" asChild>
+              <Link to="/auth" search={{ next: undefined }} className="font-semibold no-underline">Start free with BlogPilot AI</Link>
             </Button>
           </div>
         </div>
