@@ -23,6 +23,7 @@ import { Route as AuthenticatedArticlesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedQueueRouteImport } from './routes/_authenticated/queue'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedTrashRouteImport } from './routes/_authenticated/trash'
 import { Route as GuidesIndexRouteImport } from './routes/guides/index'
 import { Route as GuidesAiContentFactCheckingRouteImport } from './routes/guides/ai-content-fact-checking'
 import { Route as GuidesBlogPostWorkflowRouteImport } from './routes/guides/blog-post-workflow'
@@ -40,9 +41,11 @@ import { Route as SitemapXmlRouteImport } from './routes/sitemap.xml'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminAdsRouteImport } from './routes/_authenticated/admin.ads'
 import { Route as AuthenticatedAdminOperationsRouteImport } from './routes/_authenticated/admin.operations'
+import { Route as AuthenticatedAdminSearchConsoleRouteImport } from './routes/_authenticated/admin.search-console'
 import { Route as AuthenticatedBloggerCallbackRouteImport } from './routes/_authenticated/blogger.callback'
 import { Route as ApiPublicAdEventRouteImport } from './routes/api/public/ad-event'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
+import { Route as AuthenticatedAdminSearchConsoleCallbackRouteImport } from './routes/_authenticated/admin.search-console.callback'
 import { Route as ApiPublicCronAutopilotRouteImport } from './routes/api/public/cron/autopilot'
 import { Route as ApiPublicPostImagePostIdRouteImport } from './routes/api/public/post-image/$postId'
 
@@ -113,6 +116,11 @@ const AuthenticatedQueueRoute = AuthenticatedQueueRouteImport.update({
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTrashRoute = AuthenticatedTrashRouteImport.update({
+  id: '/trash',
+  path: '/trash',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const GuidesIndexRoute = GuidesIndexRouteImport.update({
@@ -206,6 +214,12 @@ const AuthenticatedAdminOperationsRoute =
     path: '/operations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminSearchConsoleRoute =
+  AuthenticatedAdminSearchConsoleRouteImport.update({
+    id: '/search-console',
+    path: '/search-console',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedBloggerCallbackRoute =
   AuthenticatedBloggerCallbackRouteImport.update({
     id: '/blogger/callback',
@@ -222,6 +236,12 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   path: '/api/public/stripe-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminSearchConsoleCallbackRoute =
+  AuthenticatedAdminSearchConsoleCallbackRouteImport.update({
+    id: '/callback',
+    path: '/callback',
+    getParentRoute: () => AuthenticatedAdminSearchConsoleRoute,
+  } as any)
 const ApiPublicCronAutopilotRoute = ApiPublicCronAutopilotRouteImport.update({
   id: '/api/public/cron/autopilot',
   path: '/api/public/cron/autopilot',
@@ -248,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/trash': typeof AuthenticatedTrashRoute
   '/guides/ai-content-fact-checking': typeof GuidesAiContentFactCheckingRoute
   '/guides/blog-post-workflow': typeof GuidesBlogPostWorkflowRoute
   '/guides/blog-seo-checklist': typeof GuidesBlogSeoChecklistRoute
@@ -264,10 +285,12 @@ export interface FileRoutesByFullPath {
   '/guides/': typeof GuidesIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
+  '/admin/search-console': typeof AuthenticatedAdminSearchConsoleRouteWithChildren
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/admin/search-console/callback': typeof AuthenticatedAdminSearchConsoleCallbackRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
@@ -283,6 +306,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/queue': typeof AuthenticatedQueueRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/trash': typeof AuthenticatedTrashRoute
   '/guides/ai-content-fact-checking': typeof GuidesAiContentFactCheckingRoute
   '/guides/blog-post-workflow': typeof GuidesBlogPostWorkflowRoute
   '/guides/blog-seo-checklist': typeof GuidesBlogSeoChecklistRoute
@@ -299,10 +323,12 @@ export interface FileRoutesByTo {
   '/guides': typeof GuidesIndexRoute
   '/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/admin/operations': typeof AuthenticatedAdminOperationsRoute
+  '/admin/search-console': typeof AuthenticatedAdminSearchConsoleRouteWithChildren
   '/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/admin/search-console/callback': typeof AuthenticatedAdminSearchConsoleCallbackRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
@@ -322,6 +348,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/queue': typeof AuthenticatedQueueRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/trash': typeof AuthenticatedTrashRoute
   '/guides/ai-content-fact-checking': typeof GuidesAiContentFactCheckingRoute
   '/guides/blog-post-workflow': typeof GuidesBlogPostWorkflowRoute
   '/guides/blog-seo-checklist': typeof GuidesBlogSeoChecklistRoute
@@ -338,10 +365,12 @@ export interface FileRoutesById {
   '/guides/': typeof GuidesIndexRoute
   '/_authenticated/admin/ads': typeof AuthenticatedAdminAdsRoute
   '/_authenticated/admin/operations': typeof AuthenticatedAdminOperationsRoute
+  '/_authenticated/admin/search-console': typeof AuthenticatedAdminSearchConsoleRouteWithChildren
   '/_authenticated/blogger/callback': typeof AuthenticatedBloggerCallbackRoute
   '/api/public/ad-event': typeof ApiPublicAdEventRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/admin/search-console/callback': typeof AuthenticatedAdminSearchConsoleCallbackRoute
   '/api/public/cron/autopilot': typeof ApiPublicCronAutopilotRoute
   '/api/public/post-image/$postId': typeof ApiPublicPostImagePostIdRoute
 }
@@ -361,6 +390,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/queue'
     | '/settings'
+    | '/trash'
     | '/guides/ai-content-fact-checking'
     | '/guides/blog-post-workflow'
     | '/guides/blog-seo-checklist'
@@ -377,10 +407,12 @@ export interface FileRouteTypes {
     | '/guides/'
     | '/admin/ads'
     | '/admin/operations'
+    | '/admin/search-console'
     | '/blogger/callback'
     | '/api/public/ad-event'
     | '/api/public/stripe-webhook'
     | '/admin/'
+    | '/admin/search-console/callback'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   fileRoutesByTo: FileRoutesByTo
@@ -396,6 +428,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/queue'
     | '/settings'
+    | '/trash'
     | '/guides/ai-content-fact-checking'
     | '/guides/blog-post-workflow'
     | '/guides/blog-seo-checklist'
@@ -412,10 +445,12 @@ export interface FileRouteTypes {
     | '/guides'
     | '/admin/ads'
     | '/admin/operations'
+    | '/admin/search-console'
     | '/blogger/callback'
     | '/api/public/ad-event'
     | '/api/public/stripe-webhook'
     | '/admin'
+    | '/admin/search-console/callback'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   id:
@@ -434,6 +469,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/queue'
     | '/_authenticated/settings'
+    | '/_authenticated/trash'
     | '/guides/ai-content-fact-checking'
     | '/guides/blog-post-workflow'
     | '/guides/blog-seo-checklist'
@@ -450,10 +486,12 @@ export interface FileRouteTypes {
     | '/guides/'
     | '/_authenticated/admin/ads'
     | '/_authenticated/admin/operations'
+    | '/_authenticated/admin/search-console'
     | '/_authenticated/blogger/callback'
     | '/api/public/ad-event'
     | '/api/public/stripe-webhook'
     | '/_authenticated/admin/'
+    | '/_authenticated/admin/search-console/callback'
     | '/api/public/cron/autopilot'
     | '/api/public/post-image/$postId'
   fileRoutesById: FileRoutesById
@@ -575,6 +613,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/trash': {
+      id: '/_authenticated/trash'
+      path: '/trash'
+      fullPath: '/trash'
+      preLoaderRoute: typeof AuthenticatedTrashRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/guides/': {
       id: '/guides/'
       path: '/'
@@ -694,6 +739,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminOperationsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/search-console': {
+      id: '/_authenticated/admin/search-console'
+      path: '/search-console'
+      fullPath: '/admin/search-console'
+      preLoaderRoute: typeof AuthenticatedAdminSearchConsoleRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/blogger/callback': {
       id: '/_authenticated/blogger/callback'
       path: '/blogger/callback'
@@ -715,6 +767,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/search-console/callback': {
+      id: '/_authenticated/admin/search-console/callback'
+      path: '/callback'
+      fullPath: '/admin/search-console/callback'
+      preLoaderRoute: typeof AuthenticatedAdminSearchConsoleCallbackRouteImport
+      parentRoute: typeof AuthenticatedAdminSearchConsoleRoute
+    }
     '/api/public/cron/autopilot': {
       id: '/api/public/cron/autopilot'
       path: '/api/public/cron/autopilot'
@@ -732,15 +791,33 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedAdminSearchConsoleRouteChildren {
+  AuthenticatedAdminSearchConsoleCallbackRoute: typeof AuthenticatedAdminSearchConsoleCallbackRoute
+}
+
+const AuthenticatedAdminSearchConsoleRouteChildren: AuthenticatedAdminSearchConsoleRouteChildren =
+  {
+    AuthenticatedAdminSearchConsoleCallbackRoute:
+      AuthenticatedAdminSearchConsoleCallbackRoute,
+  }
+
+const AuthenticatedAdminSearchConsoleRouteWithChildren =
+  AuthenticatedAdminSearchConsoleRoute._addFileChildren(
+    AuthenticatedAdminSearchConsoleRouteChildren,
+  )
+
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAdsRoute: typeof AuthenticatedAdminAdsRoute
   AuthenticatedAdminOperationsRoute: typeof AuthenticatedAdminOperationsRoute
+  AuthenticatedAdminSearchConsoleRoute: typeof AuthenticatedAdminSearchConsoleRouteWithChildren
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAdsRoute: AuthenticatedAdminAdsRoute,
   AuthenticatedAdminOperationsRoute: AuthenticatedAdminOperationsRoute,
+  AuthenticatedAdminSearchConsoleRoute:
+    AuthenticatedAdminSearchConsoleRouteWithChildren,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
@@ -753,6 +830,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedQueueRoute: typeof AuthenticatedQueueRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedTrashRoute: typeof AuthenticatedTrashRoute
   AuthenticatedBloggerCallbackRoute: typeof AuthenticatedBloggerCallbackRoute
 }
 
@@ -762,6 +840,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedQueueRoute: AuthenticatedQueueRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedTrashRoute: AuthenticatedTrashRoute,
   AuthenticatedBloggerCallbackRoute: AuthenticatedBloggerCallbackRoute,
 }
 
