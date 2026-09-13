@@ -1,3 +1,8 @@
+begin;
+
+alter table public.blogs
+  add column if not exists affiliate_recommendations_enabled boolean not null default false;
+
 create table if not exists public.affiliate_links (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -55,3 +60,6 @@ $$;
 
 revoke all on function public.record_affiliate_click(text) from public;
 grant execute on function public.record_affiliate_click(text) to service_role;
+
+notify pgrst, 'reload schema';
+commit;
