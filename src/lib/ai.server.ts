@@ -205,16 +205,61 @@ function normalizeJsonControlCharacters(input: string) {
   return output;
 }
 
+function firstCompleteJsonValue(input: string) {
+  const start = input.search(/[[{]/);
+  if (start === -1) throw new Error("Could not parse the AI response.");
+
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < input.length; i += 1) {
+    const ch = input[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[") {
+      stack.push(ch);
+      continue;
+    }
+
+    if (ch === "}" || ch === "]") {
+      const open = stack.pop();
+      const matches = (open === "{" && ch === "}") || (open === "[" && ch === "]");
+      if (!matches) throw new Error("Could not parse the AI response.");
+      if (stack.length === 0) return input.slice(start, i + 1);
+    }
+  }
+
+  throw new Error("Could not parse the AI response.");
+}
+
 export function extractJson<T>(raw: string): T {
   const cleaned = raw
     .replace(/^```(?:json)?/i, "")
     .replace(/```$/i, "")
     .trim();
-  const start = cleaned.search(/[[{]/);
-  const end = Math.max(cleaned.lastIndexOf("]"), cleaned.lastIndexOf("}"));
-  if (start === -1 || end === -1) throw new Error("Could not parse the AI response.");
 
-  const candidate = cleaned.slice(start, end + 1);
+  // Models occasionally append a second JSON object, a note, or other text after
+  // the valid answer. Parse only the first complete top-level JSON value instead
+  // of slicing through the final closing brace/bracket in the whole response.
+  const candidate = firstCompleteJsonValue(cleaned);
   try {
     return JSON.parse(candidate) as T;
   } catch (firstError) {
