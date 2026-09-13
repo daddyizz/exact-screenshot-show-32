@@ -5,6 +5,10 @@ import { bloggerOAuthConfig, bloggerRedirectUri, buildAuthUrl, createBloggerPost
 import { createNotification } from "./notifications.server";
 import { writeActivity } from "./operations.server";
 
+function stripInternalMarkers(body: string) {
+  return body.replace(/\s*<!--\s*blogpilot-owned-backlink:[^>]+-->\s*/gi, "\n").trim();
+}
+
 async function notifyReconnect(admin: any, userId: string, blogId: string, message: string) {
   await createNotification(admin, { userId, type: "blogger.expired", title: "Reconnect Blogger", message, severity: "warning", actionUrl: "/settings", actionLabel: "Reconnect", dedupeKey: `blogger-expired:${blogId}` });
 }
@@ -88,7 +92,7 @@ export const disconnectBlogger = createServerFn({ method: "POST" }).middleware([
   const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin as any;
   const { error } = await context.supabase.from("blogger_connections").delete().eq("blog_id", data.blogId); if (error) throw new Error(error.message);
   await writeActivity(admin,{userId:context.userId,eventType:"blogger.disconnected",entityType:"blog",entityId:data.blogId,message:"Blogger disconnected"});
-  return { ok: true };
+  return { ok:true };
 });
 
 export const publishToBlogger = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ postId: z.string().uuid(), origin: z.string().url().optional() }).parse(data)).handler(async ({ data, context }) => {
@@ -103,7 +107,8 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
   const aspect = bloggerImageAspect((post as any).blogs);
   const paddingTop = bloggerImagePaddingTop((post as any).blogs);
   const imageHtml = imageSrc ? `<div style="position:relative;width:100%;max-width:100%;padding-top:${paddingTop};overflow:hidden;margin:0 0 1.5em"><img src="${imageSrc}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover!important;margin:0!important" /></div>\n` : "";
-  const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(post.body), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
+  const publicBody = stripInternalMarkers(post.body);
+  const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(publicBody), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
   const hadExistingPost = Boolean(post.blogger_post_id); let recoveredMissingPost = false; let published: { id: string; url: string };
   try {
     if (post.blogger_post_id) {
