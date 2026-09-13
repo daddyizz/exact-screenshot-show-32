@@ -17,6 +17,10 @@ export type AutopilotOutcome = {
   url?: string;
 };
 
+function stripInternalMarkers(body: string) {
+  return body.replace(/\s*<!--\s*blogpilot-owned-backlink:[^>]+-->\s*/gi, "\n").trim();
+}
+
 function intervalMs(postsPerWeek: number) {
   const perWeek = Math.max(1, Math.min(14, postsPerWeek || 1));
   return (7 / perWeek) * 24 * 60 * 60 * 1000;
@@ -124,7 +128,6 @@ async function generateAndStoreAutopilotImage(admin: Admin, blog: any, post: any
 /** Runs one autopilot cycle for a single blog: pick/create a topic, write it, generate its AI image, optionally publish. */
 export async function runAutopilotForBlog(
   admin: Admin,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   blog: any,
   origin?: string,
 ): Promise<AutopilotOutcome> {
@@ -140,7 +143,6 @@ export async function runAutopilotForBlog(
       return { ...base, status: "skipped", detail: AUTOPILOT_LOCKED_DETAIL };
     }
 
-    // 1. Find a pending idea, or generate fresh ones.
     let { data: candidates } = await admin
       .from("posts")
       .select("id, title, outline, seo_title, meta_description, keywords, body")
@@ -157,47 +159,27 @@ export async function runAutopilotForBlog(
         .limit(100);
       const taken = (existing ?? []).map((p: { title: string }) => p.title);
 
-      const ideas = await chatCompleteJson<
-        Array<{
-          title: string;
-          outline?: string;
-          seo_title?: string;
-          meta_description?: string;
-          keywords?: string;
-        }>
-      >([
-        {
-          role: "system",
-          content:
-            "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences.",
-        },
-        {
-          role: "user",
-          content: `${blogContext(blog)}\n\nPropose 3 new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated, 3-6 terms)}`,
-        },
+      const ideas = await chatCompleteJson<Array<{ title: string; outline?: string; seo_title?: string; meta_description?: string; keywords?: string }>>([
+        { role: "system", content: "You are an SEO content strategist. Reply with JSON only — no prose, no markdown fences." },
+        { role: "user", content: `${blogContext(blog)}\n\nPropose 3 new blog post ideas with genuine search demand for this audience.\nAvoid these existing titles: ${taken.length ? taken.join(" | ") : "(none)"}.\nWrite everything in the blog's language.\n\nReturn a JSON array where each item is:\n{"title": string (max 65 chars), "outline": string (3-5 H2 sections separated by newlines), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated, 3-6 terms)}` },
       ]);
 
       const lowerTaken = new Set(taken.map((t: string) => t.trim().toLowerCase()));
-      const rows = ideas
-        .filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase()))
-        .map((idea) => ({
-          user_id: blog.user_id,
-          blog_id: blog.id,
-          title: idea.title.trim(),
-          slug: slugifyServer(idea.title),
-          outline: idea.outline ?? null,
-          seo_title: idea.seo_title ?? null,
-          meta_description: meta150(idea.meta_description),
-          keywords: idea.keywords ?? null,
-          status: "idea",
-        }));
+      const rows = ideas.filter((idea) => idea?.title && !lowerTaken.has(idea.title.trim().toLowerCase())).map((idea) => ({
+        user_id: blog.user_id,
+        blog_id: blog.id,
+        title: idea.title.trim(),
+        slug: slugifyServer(idea.title),
+        outline: idea.outline ?? null,
+        seo_title: idea.seo_title ?? null,
+        meta_description: meta150(idea.meta_description),
+        keywords: idea.keywords ?? null,
+        status: "idea",
+      }));
 
       if (rows.length === 0) return { ...base, status: "skipped", detail: "No new topics found." };
 
-      const { data: inserted, error } = await admin
-        .from("posts")
-        .insert(rows)
-        .select("id, title, outline, seo_title, meta_description, keywords, body");
+      const { data: inserted, error } = await admin.from("posts").insert(rows).select("id, title, outline, seo_title, meta_description, keywords, body");
       if (error) throw new Error(error.message);
       candidates = inserted;
     }
@@ -205,122 +187,72 @@ export async function runAutopilotForBlog(
     const post = candidates?.[0];
     if (!post) return { ...base, status: "skipped", detail: "Nothing to write." };
 
-    // 2. Write the article. Malformed model JSON is automatically regenerated once.
-    const article = await chatCompleteJson<{
-      body: string;
-      seo_title?: string;
-      meta_description?: string;
-      keywords?: string;
-    }>([
-      {
-        role: "system",
-        content:
-          "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences.",
-      },
-      {
-        role: "user",
-        content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated)}`,
-      },
+    const article = await chatCompleteJson<{ body: string; seo_title?: string; meta_description?: string; keywords?: string }>([
+      { role: "system", content: "You are an expert SEO blog writer. Reply with JSON only — no prose, no markdown fences." },
+      { role: "user", content: `${blogContext(blog)}\n\nWrite a complete, original blog article.\nTitle: ${post.title}\n${post.outline ? `Outline to follow:\n${post.outline}` : ""}\nTarget length: about ${blog.article_length} words.\nUse clear H2/H3 markdown headings, short paragraphs, and a natural keyword spread. No fluff, no invented statistics.\n\nReturn JSON:\n{"body": string (markdown article), "seo_title": string (max 60 chars), "meta_description": string (max 150 chars), "keywords": string (comma separated)}` },
     ]);
 
     const finalMeta = meta150(article.meta_description) ?? meta150(post.meta_description);
-    const { error: updateError } = await admin
-      .from("posts")
-      .update({
-        body: article.body,
-        seo_title: article.seo_title ?? post.seo_title,
-        meta_description: finalMeta,
-        keywords: article.keywords ?? post.keywords,
-        status: "drafted",
-      })
-      .eq("id", post.id);
+    const { error: updateError } = await admin.from("posts").update({
+      body: article.body,
+      seo_title: article.seo_title ?? post.seo_title,
+      meta_description: finalMeta,
+      keywords: article.keywords ?? post.keywords,
+      status: "drafted",
+    }).eq("id", post.id);
     if (updateError) throw new Error(updateError.message);
 
-    // 3. Every Autopilot article gets an AI featured image before it is eligible to publish.
-    const imageUrl = await generateAndStoreAutopilotImage(
-      admin,
-      blog,
-      post,
-      article.keywords ?? post.keywords,
-    );
+    const imageUrl = await generateAndStoreAutopilotImage(admin, blog, post, article.keywords ?? post.keywords);
     if (!imageUrl) throw new Error("Autopilot could not create the required AI featured image.");
 
-    // 4. Publish when enabled and Blogger is connected.
     if (!blog.autopilot_auto_publish) {
       return { ...base, status: "drafted", detail: `${post.title} (AI image ready)`, postId: post.id };
     }
 
-    if (!origin) {
-      throw new Error("Autopilot cannot publish without a public site origin for the required AI image.");
-    }
+    if (!origin) throw new Error("Autopilot cannot publish without a public site origin for the required AI image.");
 
-    const { data: connection } = await admin
-      .from("blogger_connections")
-      .select("*")
-      .eq("blog_id", blog.id)
-      .maybeSingle();
-
+    const { data: connection } = await admin.from("blogger_connections").select("*").eq("blog_id", blog.id).maybeSingle();
     if (!connection?.blogger_blog_id) {
-      return {
-        ...base,
-        status: "drafted",
-        detail: `${post.title} (AI image ready; Blogger not connected)`,
-        postId: post.id,
-      };
+      return { ...base, status: "drafted", detail: `${post.title} (AI image ready; Blogger not connected)`, postId: post.id };
     }
 
     let accessToken = connection.access_token ?? "";
-    const expired =
-      !connection.token_expires_at || new Date(connection.token_expires_at) <= new Date();
+    const expired = !connection.token_expires_at || new Date(connection.token_expires_at) <= new Date();
     if (expired) {
       if (!connection.refresh_token) throw new Error("Blogger connection expired. Reconnect.");
       const refreshed = await refreshAccessToken(connection.refresh_token);
       accessToken = refreshed.access_token;
-      await admin
-        .from("blogger_connections")
-        .update({ access_token: accessToken, token_expires_at: tokenExpiry(refreshed.expires_in) })
-        .eq("id", connection.id);
+      await admin.from("blogger_connections").update({ access_token: accessToken, token_expires_at: tokenExpiry(refreshed.expires_in) }).eq("id", connection.id);
     }
 
     const { data: fresh } = await admin
       .from("posts")
-      .select("image_url, seo_title, title, keywords")
+      .select("image_url, seo_title, title, keywords, body")
       .eq("id", post.id)
       .maybeSingle();
 
-    if (!fresh?.image_url) {
-      throw new Error("Autopilot blocked publishing because the required AI featured image is missing.");
-    }
+    if (!fresh?.image_url) throw new Error("Autopilot blocked publishing because the required AI featured image is missing.");
+    if (!fresh?.body) throw new Error("Autopilot blocked publishing because the generated article body is missing.");
 
     const imageHtml = `<p><img src="${origin}${fresh.image_url}" alt="${(fresh.seo_title || fresh.title).replace(/"/g, "&quot;")}" style="max-width:100%;height:auto" /></p>\n`;
+    const publicBody = stripInternalMarkers(fresh.body);
 
     const published = await createBloggerPost(accessToken, connection.blogger_blog_id, {
-      title: article.seo_title || post.title,
-      content: imageHtml + markdownToHtml(article.body),
-      labels: (article.keywords ?? "")
-        .split(",")
-        .map((k) => k.trim())
-        .filter(Boolean)
-        .slice(0, 10),
+      title: fresh.seo_title || post.title,
+      content: imageHtml + markdownToHtml(publicBody),
+      labels: (fresh.keywords ?? "").split(",").map((k) => k.trim()).filter(Boolean).slice(0, 10),
     });
 
-    await admin
-      .from("posts")
-      .update({
-        status: "published",
-        published_at: new Date().toISOString(),
-        blogger_post_id: published.id,
-        blogger_url: published.url,
-      })
-      .eq("id", post.id);
+    await admin.from("posts").update({
+      status: "published",
+      published_at: new Date().toISOString(),
+      blogger_post_id: published.id,
+      blogger_url: published.url,
+    }).eq("id", post.id);
 
     return { ...base, status: "published", detail: post.title, postId: post.id, url: published.url };
   } catch (error) {
-    return {
-      ...base,
-      status: "error",
-      detail: error instanceof Error ? error.message : "Autopilot failed.",
-    };
+    return { ...base, status: "error", detail: error instanceof Error ? error.message : "Autopilot failed." };
   } finally {
     await releaseRunLock(admin, blog.id, lockToken, lockSupported);
   }
