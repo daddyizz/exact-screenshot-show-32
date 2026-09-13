@@ -7,16 +7,17 @@ create table if not exists public.affiliate_links (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   destination_url text not null check (destination_url ~* '^https?://'),
-  platform text not null default 'other',
+  platform text not null default 'other' check (platform in ('shopee','tiktok','amazon','other')),
+  link_type text not null default 'product' check (link_type in ('product','category')),
   category text,
   keywords text not null,
   cta_text text not null default 'Check the latest deal',
   short_code text not null unique default substr(replace(gen_random_uuid()::text, '-', ''), 1, 10),
-  priority integer not null default 0,
+  priority integer not null default 100 check (priority between 0 and 10000),
   enabled boolean not null default true,
   click_count bigint not null default 0,
   last_clicked_at timestamptz,
-  created_by uuid,
+  created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -27,7 +28,7 @@ create table if not exists public.affiliate_prompt_settings (
   delay_seconds integer not null default 8 check (delay_seconds between 0 and 120),
   close_snooze_minutes integer not null default 30 check (close_snooze_minutes between 1 and 1440),
   clicked_cooldown_hours integer not null default 24 check (clicked_cooldown_hours between 1 and 168),
-  updated_by uuid,
+  updated_by uuid references auth.users(id) on delete set null,
   updated_at timestamptz not null default now()
 );
 
@@ -38,8 +39,8 @@ on conflict (singleton) do nothing;
 alter table public.affiliate_links enable row level security;
 alter table public.affiliate_prompt_settings enable row level security;
 
-revoke all on public.affiliate_links from anon, authenticated;
-revoke all on public.affiliate_prompt_settings from anon, authenticated;
+revoke all on public.affiliate_links from public, anon, authenticated;
+revoke all on public.affiliate_prompt_settings from public, anon, authenticated;
 grant all on public.affiliate_links to service_role;
 grant all on public.affiliate_prompt_settings to service_role;
 
