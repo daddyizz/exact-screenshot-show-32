@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { bloggerOAuthConfig, bloggerRedirectUri, buildAuthUrl, createBloggerPost, exchangeCode, isBloggerNotFound, listBlogs, markdownToHtml, refreshAccessToken, tokenExpiry, updateBloggerPost } from "./blogger.server";
+import { affiliateHtml, selectAffiliateForPost } from "./affiliate.server";
 import { createNotification } from "./notifications.server";
 import { writeActivity } from "./operations.server";
 
@@ -11,12 +12,12 @@ function stripInternalMarkers(body: string) {
 
 async function notifyReconnect(admin: any, userId: string, blogId: string, message: string) {
   await createNotification(admin, { userId, type: "blogger.expired", title: "Reconnect Blogger", message, severity: "warning", actionUrl: "/settings", actionLabel: "Reconnect", dedupeKey: `blogger-expired:${blogId}` });
+  await writeActivity(admin,{userId,eventType:"blogger.reconnect_required",entityType:"blog",entityId:blogId,status:"failed",message:"Blogger connection requires reconnect",metadata:{reason:"missing_refresh_token"}});
 }
 
 async function refreshConnection(admin: any, connection: any, userId: string, blogId: string) {
   if (!connection.refresh_token) {
     await notifyReconnect(admin, userId, blogId, "Your Blogger connection expired and cannot refresh automatically.");
-    await writeActivity(admin,{userId,eventType:"blogger.reconnect_required",entityType:"blog",entityId:blogId,status:"failed",message:"Blogger connection requires reconnect",metadata:{reason:"missing_refresh_token"}});
     throw new Error("Your Blogger connection expired. Reconnect the blog.");
   }
   try {
@@ -96,7 +97,7 @@ export const disconnectBlogger = createServerFn({ method: "POST" }).middleware([
 });
 
 export const publishToBlogger = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((data) => z.object({ postId: z.string().uuid(), origin: z.string().url().optional() }).parse(data)).handler(async ({ data, context }) => {
-  const { supabase, userId } = context; const { data: post, error: postError } = await supabase.from("posts").select("*, blogs(ai_image_aspect_ratio,ai_image_custom_width,ai_image_custom_height)").eq("id", data.postId).maybeSingle();
+  const { supabase, userId } = context; const { data: post, error: postError } = await supabase.from("posts").select("*, blogs(ai_image_aspect_ratio,ai_image_custom_width,ai_image_custom_height,affiliate_recommendations_enabled)").eq("id", data.postId).maybeSingle();
   if (postError) throw new Error(postError.message); if (!post) throw new Error("Post not found"); if (!post.body) throw new Error("Write the article before publishing.");
   const admin = (await import("@/integrations/supabase/client.server")).supabaseAdmin; const { data: connection, error: connError } = await admin.from("blogger_connections").select("*").eq("blog_id", post.blog_id).eq("user_id", userId).maybeSingle();
   if (connError) throw new Error(connError.message); if (!connection?.blogger_blog_id) throw new Error("Connect this blog to Blogger first.");
@@ -108,7 +109,9 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
   const paddingTop = bloggerImagePaddingTop((post as any).blogs);
   const imageHtml = imageSrc ? `<div style="position:relative;width:100%;max-width:100%;padding-top:${paddingTop};overflow:hidden;margin:0 0 1.5em"><img src="${imageSrc}" alt="${(post.seo_title || post.title).replace(/"/g, "&quot;")}" style="position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover!important;margin:0!important" /></div>\n` : "";
   const publicBody = stripInternalMarkers(post.body);
-  const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(publicBody), labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
+  const affiliate = await selectAffiliateForPost(post as any);
+  const affiliateBlock = affiliateHtml(affiliate, data.origin);
+  const input = { title: post.seo_title || post.title, content: imageHtml + markdownToHtml(publicBody) + affiliateBlock, labels: (post.keywords ?? "").split(",").map((k: string) => k.trim()).filter(Boolean).slice(0, 10) };
   const hadExistingPost = Boolean(post.blogger_post_id); let recoveredMissingPost = false; let published: { id: string; url: string };
   try {
     if (post.blogger_post_id) {
@@ -117,8 +120,8 @@ export const publishToBlogger = createServerFn({ method: "POST" }).middleware([r
     } else published = await createBloggerPost(accessToken, connection.blogger_blog_id, input);
     const { error } = await supabase.from("posts").update({ status: "published", published_at: new Date().toISOString(), blogger_post_id: published.id, blogger_url: published.url }).eq("id", data.postId); if (error) throw new Error(error.message);
     await createNotification(admin, { userId, type: recoveredMissingPost ? "blogger.recovered" : "blogger.published", title: recoveredMissingPost ? "Blogger post restored" : hadExistingPost ? "Article republished" : "Article published", message: recoveredMissingPost ? `${post.title} was missing from Blogger, so BlogPilot created a replacement post.` : post.title, severity: "success", actionUrl: "/articles", actionLabel: "View articles" });
-    await writeActivity(admin,{userId,eventType:recoveredMissingPost?"blogger.post_recovered":hadExistingPost?"blogger.post_republished":"blogger.post_published",entityType:"post",entityId:data.postId,message:recoveredMissingPost?"Missing Blogger post restored":hadExistingPost?"Article republished to Blogger":"Article published to Blogger",metadata:{blogId:post.blog_id,bloggerPostId:published.id,title:post.title,imageVersion,imageAspect:aspect}});
-    return { url: published.url, republished: hadExistingPost && !recoveredMissingPost, recoveredMissingPost };
+    await writeActivity(admin,{userId,eventType:recoveredMissingPost?"blogger.post_recovered":hadExistingPost?"blogger.post_republished":"blogger.post_published",entityType:"post",entityId:data.postId,message:recoveredMissingPost?"Missing Blogger post restored":hadExistingPost?"Article republished to Blogger":"Article published to Blogger",metadata:{blogId:post.blog_id,bloggerPostId:published.id,title:post.title,imageVersion,imageAspect:aspect,affiliateLinkId:affiliate?.id??null}});
+    return { url: published.url, republished: hadExistingPost && !recoveredMissingPost, recoveredMissingPost, affiliateInserted: Boolean(affiliate) };
   } catch(error:any) {
     await writeActivity(admin,{userId,eventType:"blogger.publish_failed",entityType:"post",entityId:data.postId,status:"failed",message:"Blogger publish failed",metadata:{blogId:post.blog_id,title:post.title,error:String(error?.message??error).slice(0,500)}});
     throw error;
