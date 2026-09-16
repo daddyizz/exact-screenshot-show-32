@@ -85,6 +85,19 @@ export function affiliateMarkdown(link: AffiliateLink, origin: string) {
   return `\n\n---\n\n**Recommended deal:** [${link.cta_text}](${base}/go/${link.short_code})`;
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+export function affiliateHtml(link: AffiliateLink | null, origin?: string) {
+  if (!link || !origin) return "";
+  const base = origin.replace(/\/$/, "");
+  const href = `${base}/go/${encodeURIComponent(link.short_code)}`;
+  const platform = escapeHtml(link.platform.charAt(0).toUpperCase() + link.platform.slice(1));
+  const cta = escapeHtml(link.cta_text || "Check the latest deal");
+  return `\n<div class="blogpilot-affiliate-cta" style="margin:1.75em 0;padding:1em 1.1em;border:1px solid rgba(127,127,127,.28);border-radius:12px"><div style="font-size:.78em;opacity:.72;margin-bottom:.45em">Affiliate recommendation · ${platform}</div><a href="${href}" target="_blank" rel="sponsored nofollow noopener noreferrer" style="font-weight:700;text-decoration:underline">${cta}</a></div>`;
+}
+
 export function affiliateWidgetScript(link: AffiliateLink, origin: string) {
   const base = origin.replace(/\/$/, "");
   return `<script async src="${base}/api/public/affiliate-widget?code=${encodeURIComponent(link.short_code)}"></script>`;
