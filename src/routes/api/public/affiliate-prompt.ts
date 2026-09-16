@@ -14,13 +14,19 @@ async function handle(request: Request) {
   const [blogResult, settingsResult, linksResult] = await Promise.all([
     admin.from("blogs").select("affiliate_recommendations_enabled").eq("id", blogId).maybeSingle(),
     admin.from("affiliate_prompt_settings").select("enabled,delay_seconds,close_snooze_minutes,clicked_cooldown_hours").eq("singleton", true).maybeSingle(),
-    admin.from("affiliate_links").select("short_code,platform,link_type,category,keywords,cta_text,priority").eq("enabled", true).order("priority", { ascending: true }).limit(500),
+    admin.from("affiliate_links").select("short_code,platform,link_type,category,keywords,cta_text,priority,starts_at,expires_at,max_clicks,click_count").eq("enabled", true).order("priority", { ascending: true }).limit(500),
   ]);
   if (blogResult.error || settingsResult.error || linksResult.error) return new Response("/* unavailable */", { status: 503, headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" } });
   if (!blogResult.data?.affiliate_recommendations_enabled || !settingsResult.data?.enabled) return new Response("/* BlogPilot affiliate prompt disabled */", { status: 200, headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "public, max-age=60" } });
 
+  const now = Date.now();
   const settings = settingsResult.data;
-  const links = linksResult.data ?? [];
+  const links = (linksResult.data ?? []).filter((link: any) => {
+    if (link.starts_at && now < new Date(link.starts_at).getTime()) return false;
+    if (link.expires_at && now >= new Date(link.expires_at).getTime()) return false;
+    if (link.max_clicks != null && Number(link.click_count ?? 0) >= Number(link.max_clicks)) return false;
+    return true;
+  });
   const origin = `${url.protocol}//${url.host}`;
   const body = `(function(){
     var CFG=${js({ origin, delay: Number(settings.delay_seconds ?? 8), snooze: Number(settings.close_snooze_minutes ?? 30), cooldown: Number(settings.clicked_cooldown_hours ?? 24), blogId, links })};
