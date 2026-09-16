@@ -10,6 +10,11 @@ type AffiliateLink = {
   short_code: string;
   priority: number;
   enabled: boolean;
+  campaign_name?: string | null;
+  starts_at?: string | null;
+  expires_at?: string | null;
+  max_clicks?: number | null;
+  click_count?: number | null;
 };
 
 type AffiliatePromptSettings = {
@@ -31,13 +36,21 @@ function containsToken(haystack: string, token: string) {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(haystack);
 }
 
+export function affiliateLinkAvailable(link: AffiliateLink, now = Date.now()) {
+  if (!link.enabled) return false;
+  if (link.starts_at && now < new Date(link.starts_at).getTime()) return false;
+  if (link.expires_at && now >= new Date(link.expires_at).getTime()) return false;
+  if (link.max_clicks != null && Number(link.click_count ?? 0) >= Number(link.max_clicks)) return false;
+  return true;
+}
+
 export async function selectAffiliateForPost(post: any): Promise<AffiliateLink | null> {
   if (!post?.blogs?.affiliate_recommendations_enabled) return null;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as any;
   const result = await admin
     .from("affiliate_links")
-    .select("id,name,destination_url,platform,link_type,category,keywords,cta_text,short_code,priority,enabled")
+    .select("id,name,destination_url,platform,link_type,category,keywords,cta_text,short_code,priority,enabled,campaign_name,starts_at,expires_at,max_clicks,click_count")
     .eq("enabled", true)
     .order("priority", { ascending: true })
     .order("created_at", { ascending: true });
@@ -51,12 +64,14 @@ export async function selectAffiliateForPost(post: any): Promise<AffiliateLink |
   let best: { link: AffiliateLink; score: number } | null = null;
   for (const raw of result.data ?? []) {
     const link = raw as AffiliateLink;
-    let matches = 0;
-    for (const token of tokens(link.keywords)) if (containsToken(haystack, token)) matches += 1;
+    if (!affiliateLinkAvailable(link)) continue;
+    let score = 0;
+    for (const token of tokens(link.keywords)) {
+      if (containsToken(haystack, token)) score += link.link_type === "product" ? 4 : 2;
+    }
     const category = link.category?.trim().toLowerCase();
-    const categoryMatch = Boolean(category && containsToken(haystack, category));
-    if (matches === 0 && !categoryMatch) continue;
-    const score = (link.link_type === "product" ? 1000 : 0) + (matches * 10) + (categoryMatch ? 3 : 0);
+    if (category && containsToken(haystack, category)) score += link.link_type === "product" ? 2 : 3;
+    if (score <= 0) continue;
     if (!best || score > best.score || (score === best.score && link.priority < best.link.priority)) best = { link, score };
   }
   return best?.link ?? null;
