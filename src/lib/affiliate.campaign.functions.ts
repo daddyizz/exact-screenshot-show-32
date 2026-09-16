@@ -76,6 +76,66 @@ export const duplicateAffiliateCampaign = createServerFn({ method: "POST" })
     return { ok: true, copied: count };
   });
 
+export const resetAffiliateLinkClicks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const current = await admin.from("affiliate_links").select("id,name,click_count,campaign_name").eq("id", data.id).single();
+    if (current.error) throw new Error(current.error.message);
+    const result = await admin.from("affiliate_links").update({ click_count: 0, last_clicked_at: null, updated_at: new Date().toISOString() }).eq("id", data.id).select("id").single();
+    if (result.error) throw new Error(result.error.message);
+    await writeActivity(admin, {
+      actorUserId: context.userId,
+      eventType: "admin.affiliate_clicks_reset",
+      entityType: "affiliate_link",
+      entityId: data.id,
+      message: `Reset affiliate click counter for ${current.data.name}`,
+      metadata: { previousClicks: Number(current.data.click_count || 0), campaignName: current.data.campaign_name ?? null },
+    });
+    return { ok: true, previousClicks: Number(current.data.click_count || 0) };
+  });
+
+export const cloneAffiliateLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ id: z.string().uuid(), name: z.string().trim().min(2).max(160).optional() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const source = await admin
+      .from("affiliate_links")
+      .select("name,destination_url,platform,link_type,category,keywords,cta_text,priority,campaign_name,max_clicks")
+      .eq("id", data.id)
+      .single();
+    if (source.error) throw new Error(source.error.message);
+    const row = {
+      ...source.data,
+      name: data.name?.trim() || `${source.data.name} Copy`,
+      enabled: false,
+      click_count: 0,
+      last_clicked_at: null,
+      starts_at: null,
+      expires_at: null,
+      created_by: context.userId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const inserted = await admin.from("affiliate_links").insert(row).select("id,name,short_code").single();
+    if (inserted.error) throw new Error(inserted.error.message);
+    await writeActivity(admin, {
+      actorUserId: context.userId,
+      eventType: "admin.affiliate_link_cloned",
+      entityType: "affiliate_link",
+      entityId: inserted.data.id,
+      message: `Cloned affiliate link ${source.data.name}`,
+      metadata: { sourceId: data.id, newName: inserted.data.name, campaignName: source.data.campaign_name ?? null },
+    });
+    return { ok: true, id: inserted.data.id, name: inserted.data.name, shortCode: inserted.data.short_code };
+  });
+
 export const listAffiliateCampaignSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
