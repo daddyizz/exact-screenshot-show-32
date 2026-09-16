@@ -51,13 +51,12 @@ export async function selectAffiliateForPost(post: any): Promise<AffiliateLink |
   let best: { link: AffiliateLink; score: number } | null = null;
   for (const raw of result.data ?? []) {
     const link = raw as AffiliateLink;
-    let score = 0;
-    for (const token of tokens(link.keywords)) {
-      if (containsToken(haystack, token)) score += link.link_type === "product" ? 4 : 2;
-    }
+    let matches = 0;
+    for (const token of tokens(link.keywords)) if (containsToken(haystack, token)) matches += 1;
     const category = link.category?.trim().toLowerCase();
-    if (category && containsToken(haystack, category)) score += link.link_type === "product" ? 2 : 3;
-    if (score <= 0) continue;
+    const categoryMatch = Boolean(category && containsToken(haystack, category));
+    if (matches === 0 && !categoryMatch) continue;
+    const score = (link.link_type === "product" ? 1000 : 0) + (matches * 10) + (categoryMatch ? 3 : 0);
     if (!best || score > best.score || (score === best.score && link.priority < best.link.priority)) best = { link, score };
   }
   return best?.link ?? null;
