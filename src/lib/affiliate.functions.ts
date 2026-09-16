@@ -11,8 +11,16 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
 
 function normalizeUrl(value: string) {
   const parsed = new URL(value.trim());
-  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Only http/https URLs are allowed');
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Only http/https URLs are allowed");
   return parsed.toString();
+}
+
+function optionalIso(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid campaign date/time");
+  return date.toISOString();
 }
 
 function csvCells(line: string) {
@@ -24,7 +32,7 @@ function csvCells(line: string) {
     if (ch === '"') {
       if (quoted && line[i + 1] === '"') { current += '"'; i += 1; }
       else quoted = !quoted;
-    } else if (ch === ',' && !quoted) { out.push(current.trim()); current = ""; }
+    } else if (ch === "," && !quoted) { out.push(current.trim()); current = ""; }
     else current += ch;
   }
   out.push(current.trim());
@@ -42,6 +50,10 @@ const linkSchema = z.object({
   ctaText: z.string().trim().min(2).max(120).default("Check the latest deal"),
   priority: z.number().int().min(0).max(10000).default(100),
   enabled: z.boolean().default(true),
+  campaignName: z.string().trim().max(160).optional().default(""),
+  startsAt: z.string().optional().default(""),
+  expiresAt: z.string().optional().default(""),
+  maxClicks: z.number().int().min(1).max(1000000000).nullable().optional(),
 });
 
 export const listAffiliateAdmin = createServerFn({ method: "GET" })
@@ -81,6 +93,9 @@ export const saveAffiliateLink = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
+    const startsAt = optionalIso(data.startsAt);
+    const expiresAt = optionalIso(data.expiresAt);
+    if (startsAt && expiresAt && new Date(expiresAt) <= new Date(startsAt)) throw new Error("Campaign end must be after campaign start");
     const row = {
       name: data.name,
       destination_url: normalizeUrl(data.destinationUrl),
@@ -91,6 +106,10 @@ export const saveAffiliateLink = createServerFn({ method: "POST" })
       cta_text: data.ctaText,
       priority: data.priority,
       enabled: data.enabled,
+      campaign_name: data.campaignName || null,
+      starts_at: startsAt,
+      expires_at: expiresAt,
+      max_clicks: data.maxClicks ?? null,
       created_by: context.userId,
       updated_at: new Date().toISOString(),
     };
@@ -104,7 +123,7 @@ export const saveAffiliateLink = createServerFn({ method: "POST" })
       entityType: "affiliate_link",
       entityId: result.data.id,
       message: data.id ? "Affiliate link updated" : "Affiliate link added",
-      metadata: { name: data.name, platform: data.platform, linkType: data.linkType, enabled: data.enabled },
+      metadata: { name: data.name, platform: data.platform, linkType: data.linkType, enabled: data.enabled, campaignName: data.campaignName || null, startsAt, expiresAt, maxClicks: data.maxClicks ?? null },
     });
     return { ok: true, id: result.data.id };
   });
@@ -124,25 +143,12 @@ export const deleteAffiliateLink = createServerFn({ method: "POST" })
 
 export const saveAffiliatePromptSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => z.object({
-    enabled: z.boolean(),
-    delaySeconds: z.number().int().min(0).max(120),
-    closeSnoozeMinutes: z.number().int().min(1).max(1440),
-    clickedCooldownHours: z.number().int().min(1).max(168),
-  }).parse(data))
+  .inputValidator((data) => z.object({ enabled: z.boolean(), delaySeconds: z.number().int().min(0).max(120), closeSnoozeMinutes: z.number().int().min(1).max(1440), clickedCooldownHours: z.number().int().min(1).max(168) }).parse(data))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
-    const { error } = await admin.from("affiliate_prompt_settings").upsert({
-      singleton: true,
-      enabled: data.enabled,
-      delay_seconds: data.delaySeconds,
-      close_snooze_minutes: data.closeSnoozeMinutes,
-      clicked_cooldown_hours: data.clickedCooldownHours,
-      updated_by: context.userId,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "singleton" });
+    const { error } = await admin.from("affiliate_prompt_settings").upsert({ singleton: true, enabled: data.enabled, delay_seconds: data.delaySeconds, close_snooze_minutes: data.closeSnoozeMinutes, clicked_cooldown_hours: data.clickedCooldownHours, updated_by: context.userId, updated_at: new Date().toISOString() }, { onConflict: "singleton" });
     if (error) throw new Error(error.message);
     await writeActivity(admin, { actorUserId: context.userId, eventType: "admin.affiliate_prompt_updated", entityType: "affiliate_prompt", message: "Affiliate prompt settings updated", metadata: data });
     return { ok: true };
@@ -159,14 +165,14 @@ export const importAffiliateCsv = createServerFn({ method: "POST" })
     if (lines.length < 2) throw new Error("CSV needs a header row and at least one item.");
     const header = csvCells(lines[0]).map((cell) => cell.toLowerCase().replace(/\s+/g, "_"));
     const index = (name: string) => header.indexOf(name);
-    const required = ["name", "destination_url", "keywords"];
-    for (const field of required) if (index(field) < 0) throw new Error(`CSV missing required column: ${field}`);
+    for (const field of ["name", "destination_url", "keywords"]) if (index(field) < 0) throw new Error(`CSV missing required column: ${field}`);
     const rows = [];
     for (const line of lines.slice(1)) {
       const cells = csvCells(line);
       if (!cells[index("name")] || !cells[index("destination_url")]) continue;
       const platform = (cells[index("platform")] || "other").toLowerCase();
       const linkType = (cells[index("link_type")] || "product").toLowerCase();
+      const maxClicksRaw = index("max_clicks") >= 0 ? Number(cells[index("max_clicks")]) : NaN;
       rows.push({
         name: cells[index("name")],
         destination_url: normalizeUrl(cells[index("destination_url")]),
@@ -176,6 +182,10 @@ export const importAffiliateCsv = createServerFn({ method: "POST" })
         keywords: cells[index("keywords")] || "",
         cta_text: index("cta_text") >= 0 ? cells[index("cta_text")] || "Check the latest deal" : "Check the latest deal",
         priority: index("priority") >= 0 ? Math.max(0, Math.min(10000, Number(cells[index("priority")]) || 100)) : 100,
+        campaign_name: index("campaign_name") >= 0 ? cells[index("campaign_name")] || null : null,
+        starts_at: index("starts_at") >= 0 && cells[index("starts_at")] ? optionalIso(cells[index("starts_at")]) : null,
+        expires_at: index("expires_at") >= 0 && cells[index("expires_at")] ? optionalIso(cells[index("expires_at")]) : null,
+        max_clicks: Number.isFinite(maxClicksRaw) && maxClicksRaw > 0 ? Math.floor(maxClicksRaw) : null,
         enabled: true,
         created_by: context.userId,
         updated_at: new Date().toISOString(),
