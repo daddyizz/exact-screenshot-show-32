@@ -50,13 +50,28 @@ export const listAffiliateAdmin = createServerFn({ method: "GET" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
-    const [links, settings] = await Promise.all([
+    const [links, settings, blogs] = await Promise.all([
       admin.from("affiliate_links").select("*").order("priority", { ascending: true }).order("created_at", { ascending: false }),
       admin.from("affiliate_prompt_settings").select("*").eq("singleton", true).maybeSingle(),
+      admin.from("blogs").select("id,name,url,user_id,affiliate_recommendations_enabled").is("deleted_at", null).order("created_at", { ascending: true }),
     ]);
     if (links.error) throw new Error(links.error.message);
     if (settings.error) throw new Error(settings.error.message);
-    return { links: links.data ?? [], settings: settings.data ?? null };
+    if (blogs.error) throw new Error(blogs.error.message);
+    return { links: links.data ?? [], settings: settings.data ?? null, blogs: blogs.data ?? [] };
+  });
+
+export const saveAffiliateBlogSetting = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ blogId: z.string().uuid(), enabled: z.boolean() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as any;
+    const result = await admin.from("blogs").update({ affiliate_recommendations_enabled: data.enabled }).eq("id", data.blogId).select("id,name").single();
+    if (result.error) throw new Error(result.error.message);
+    await writeActivity(admin, { actorUserId: context.userId, eventType: "admin.affiliate_blog_setting_updated", entityType: "blog", entityId: data.blogId, message: data.enabled ? "Affiliate recommendations enabled for blog" : "Affiliate recommendations disabled for blog", metadata: { blogName: result.data.name, enabled: data.enabled } });
+    return { ok: true };
   });
 
 export const saveAffiliateLink = createServerFn({ method: "POST" })
