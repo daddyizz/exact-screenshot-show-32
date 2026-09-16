@@ -12,41 +12,17 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { deleteAffiliateLink, importAffiliateCsv, listAffiliateAdmin, saveAffiliateLink, saveAffiliatePromptSettings } from "@/lib/affiliate.functions";
+import { deleteAffiliateLink, importAffiliateCsv, listAffiliateAdmin, saveAffiliateBlogSetting, saveAffiliateLink, saveAffiliatePromptSettings } from "@/lib/affiliate.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/affiliate")({
   head: () => ({ meta: [{ title: "Smart Affiliate Network — BlogPilot AI" }] }),
   component: AffiliateAdminPage,
 });
 
-type AffiliateLink = {
-  id: string;
-  name: string;
-  destination_url: string;
-  platform: "shopee" | "tiktok" | "amazon" | "other";
-  link_type: "product" | "category";
-  category: string | null;
-  keywords: string;
-  cta_text: string;
-  short_code: string;
-  priority: number;
-  enabled: boolean;
-  click_count: number;
-  last_clicked_at: string | null;
-};
+type AffiliateLink = { id: string; name: string; destination_url: string; platform: "shopee" | "tiktok" | "amazon" | "other"; link_type: "product" | "category"; category: string | null; keywords: string; cta_text: string; short_code: string; priority: number; enabled: boolean; click_count: number; last_clicked_at: string | null; };
+type BlogRow = { id: string; name: string; url: string; user_id: string; affiliate_recommendations_enabled: boolean; };
 
-const emptyForm = {
-  id: undefined as string | undefined,
-  name: "",
-  destinationUrl: "",
-  platform: "shopee" as const,
-  linkType: "product" as const,
-  category: "",
-  keywords: "",
-  ctaText: "Semak harga terkini",
-  priority: 100,
-  enabled: true,
-};
+const emptyForm = { id: undefined as string | undefined, name: "", destinationUrl: "", platform: "shopee" as const, linkType: "product" as const, category: "", keywords: "", ctaText: "Semak harga terkini", priority: 100, enabled: true };
 
 function AffiliateAdminPage() {
   const queryClient = useQueryClient();
@@ -55,6 +31,7 @@ function AffiliateAdminPage() {
   const deleteFn = useServerFn(deleteAffiliateLink);
   const importFn = useServerFn(importAffiliateCsv);
   const saveSettingsFn = useServerFn(saveAffiliatePromptSettings);
+  const saveBlogFn = useServerFn(saveAffiliateBlogSetting);
   const [form, setForm] = useState(emptyForm);
   const [open, setOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -62,74 +39,37 @@ function AffiliateAdminPage() {
 
   const query = useQuery({ queryKey: ["affiliate-admin"], queryFn: () => listFn(), retry: false });
   const links = (query.data?.links ?? []) as AffiliateLink[];
+  const blogs = (query.data?.blogs ?? []) as BlogRow[];
   const settings = query.data?.settings;
   const enabledCount = useMemo(() => links.filter((link) => link.enabled).length, [links]);
   const totalClicks = useMemo(() => links.reduce((sum, link) => sum + Number(link.click_count || 0), 0), [links]);
 
-  const save = useMutation({
-    mutationFn: () => saveFn({ data: form }),
-    onSuccess: async () => { toast.success(form.id ? "Affiliate link updated" : "Affiliate link added"); setOpen(false); setForm(emptyForm); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const save = useMutation({ mutationFn: () => saveFn({ data: form }), onSuccess: async () => { toast.success(form.id ? "Affiliate link updated" : "Affiliate link added"); setOpen(false); setForm(emptyForm); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); }, onError: (error: Error) => toast.error(error.message) });
+  const remove = useMutation({ mutationFn: (id: string) => deleteFn({ data: { id } }), onSuccess: async () => { toast.success("Affiliate link removed"); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); }, onError: (error: Error) => toast.error(error.message) });
+  const importCsv = useMutation({ mutationFn: () => importFn({ data: { csv } }), onSuccess: async (result) => { toast.success(`${result.imported} affiliate links imported`); setCsvOpen(false); setCsv(""); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); }, onError: (error: Error) => toast.error(error.message) });
+  const saveBlog = useMutation({ mutationFn: ({ blogId, enabled }: { blogId: string; enabled: boolean }) => saveBlogFn({ data: { blogId, enabled } }), onSuccess: async () => { toast.success("Blog affiliate setting saved"); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); }, onError: (error: Error) => toast.error(error.message) });
+  const savePrompt = useMutation({ mutationFn: (patch: Partial<{ enabled: boolean; delaySeconds: number; closeSnoozeMinutes: number; clickedCooldownHours: number }>) => saveSettingsFn({ data: { enabled: patch.enabled ?? Boolean(settings?.enabled), delaySeconds: patch.delaySeconds ?? Number(settings?.delay_seconds ?? 8), closeSnoozeMinutes: patch.closeSnoozeMinutes ?? Number(settings?.close_snooze_minutes ?? 30), clickedCooldownHours: patch.clickedCooldownHours ?? Number(settings?.clicked_cooldown_hours ?? 24) } }), onSuccess: async () => { toast.success("Affiliate prompt settings saved"); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); }, onError: (error: Error) => toast.error(error.message) });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteFn({ data: { id } }),
-    onSuccess: async () => { toast.success("Affiliate link removed"); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const importCsv = useMutation({
-    mutationFn: () => importFn({ data: { csv } }),
-    onSuccess: async (result) => { toast.success(`${result.imported} affiliate links imported`); setCsvOpen(false); setCsv(""); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const savePrompt = useMutation({
-    mutationFn: (patch: Partial<{ enabled: boolean; delaySeconds: number; closeSnoozeMinutes: number; clickedCooldownHours: number }>) => saveSettingsFn({ data: {
-      enabled: patch.enabled ?? Boolean(settings?.enabled),
-      delaySeconds: patch.delaySeconds ?? Number(settings?.delay_seconds ?? 8),
-      closeSnoozeMinutes: patch.closeSnoozeMinutes ?? Number(settings?.close_snooze_minutes ?? 30),
-      clickedCooldownHours: patch.clickedCooldownHours ?? Number(settings?.clicked_cooldown_hours ?? 24),
-    } }),
-    onSuccess: async () => { toast.success("Affiliate prompt settings saved"); await queryClient.invalidateQueries({ queryKey: ["affiliate-admin"] }); },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const editLink = (link: AffiliateLink) => {
-    setForm({ id: link.id, name: link.name, destinationUrl: link.destination_url, platform: link.platform, linkType: link.link_type, category: link.category ?? "", keywords: link.keywords, ctaText: link.cta_text, priority: link.priority, enabled: link.enabled });
-    setOpen(true);
-  };
+  const editLink = (link: AffiliateLink) => { setForm({ id: link.id, name: link.name, destinationUrl: link.destination_url, platform: link.platform, linkType: link.link_type, category: link.category ?? "", keywords: link.keywords, ctaText: link.cta_text, priority: link.priority, enabled: link.enabled }); setOpen(true); };
 
   return <div className="space-y-7">
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-eyebrow">Admin</p><h1 className="font-display mt-1 text-2xl font-bold tracking-tight">Smart Affiliate Network</h1><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Manage product and category affiliate links centrally. BlogPilot can match relevant articles and publish a contextual sponsored CTA through a BlogPilot redirect URL.</p></div>
-      <div className="flex gap-2"><Button variant="outline" onClick={() => setCsvOpen(true)}><Upload aria-hidden />Import CSV</Button><Button onClick={() => { setForm(emptyForm); setOpen(true); }}><Plus aria-hidden />Add link</Button></div>
-    </header>
+    <header className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-eyebrow">Admin</p><h1 className="font-display mt-1 text-2xl font-bold tracking-tight">Smart Affiliate Network</h1><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Manage product and category affiliate links centrally. BlogPilot can match relevant articles and publish a contextual sponsored CTA through a BlogPilot redirect URL.</p></div><div className="flex gap-2"><Button variant="outline" onClick={() => setCsvOpen(true)}><Upload aria-hidden />Import CSV</Button><Button onClick={() => { setForm(emptyForm); setOpen(true); }}><Plus aria-hidden />Add link</Button></div></header>
 
     <div className="grid gap-3 sm:grid-cols-3"><Stat label="Affiliate links" value={links.length} /><Stat label="Enabled" value={enabledCount} /><Stat label="Tracked clicks" value={totalClicks} /></div>
 
-    <section className="surface-panel space-y-4 p-5">
-      <div className="flex items-center justify-between gap-4"><div><h2 className="font-display text-lg font-semibold">Reader prompt</h2><p className="text-sm text-muted-foreground">Global defaults for the optional Blogger theme prompt. Closing snoozes it; a genuine CTA click starts the longer cooldown.</p></div><Switch checked={Boolean(settings?.enabled)} onCheckedChange={(enabled) => savePrompt.mutate({ enabled })} /></div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <NumberSetting label="Delay before showing (seconds)" value={Number(settings?.delay_seconds ?? 8)} onSave={(value) => savePrompt.mutate({ delaySeconds: value })} />
-        <NumberSetting label="Close snooze (minutes)" value={Number(settings?.close_snooze_minutes ?? 30)} onSave={(value) => savePrompt.mutate({ closeSnoozeMinutes: value })} />
-        <NumberSetting label="After-click cooldown (hours)" value={Number(settings?.clicked_cooldown_hours ?? 24)} onSave={(value) => savePrompt.mutate({ clickedCooldownHours: value })} />
-      </div>
-    </section>
+    <section className="surface-panel space-y-4 p-5"><div><h2 className="font-display text-lg font-semibold">Blog rollout</h2><p className="text-sm text-muted-foreground">Enable Smart Affiliate only on blogs that should receive sponsored recommendations. Manual Blogger publishing will insert at most one matching CTA.</p></div><div className="divide-y divide-border rounded-lg border border-border">{blogs.length === 0 ? <p className="p-4 text-sm text-muted-foreground">No active blogs found.</p> : blogs.map((blog) => <div key={blog.id} className="flex items-center justify-between gap-4 p-4"><div className="min-w-0"><p className="font-medium">{blog.name}</p><p className="truncate text-xs text-muted-foreground">{blog.url}</p><code className="mt-1 block truncate text-[10px] text-muted-foreground">Prompt script blogId: {blog.id}</code></div><Switch checked={Boolean(blog.affiliate_recommendations_enabled)} disabled={saveBlog.isPending} onCheckedChange={(enabled) => saveBlog.mutate({ blogId: blog.id, enabled })} /></div>)}</div><p className="text-xs text-muted-foreground">The once-per-30-min / 24-hour reader prompt needs a one-time Blogger theme script install. Contextual article CTA publishing works independently.</p></section>
+
+    <section className="surface-panel space-y-4 p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="font-display text-lg font-semibold">Reader prompt</h2><p className="text-sm text-muted-foreground">Global defaults for the optional Blogger theme prompt. Closing snoozes it; a genuine CTA click starts the longer cooldown.</p></div><Switch checked={Boolean(settings?.enabled)} onCheckedChange={(enabled) => savePrompt.mutate({ enabled })} /></div><div className="grid gap-4 sm:grid-cols-3"><NumberSetting key={`delay-${settings?.delay_seconds ?? 8}`} label="Delay before showing (seconds)" value={Number(settings?.delay_seconds ?? 8)} onSave={(value) => savePrompt.mutate({ delaySeconds: value })} /><NumberSetting key={`snooze-${settings?.close_snooze_minutes ?? 30}`} label="Close snooze (minutes)" value={Number(settings?.close_snooze_minutes ?? 30)} onSave={(value) => savePrompt.mutate({ closeSnoozeMinutes: value })} /><NumberSetting key={`cooldown-${settings?.clicked_cooldown_hours ?? 24}`} label="After-click cooldown (hours)" value={Number(settings?.clicked_cooldown_hours ?? 24)} onSave={(value) => savePrompt.mutate({ clickedCooldownHours: value })} /></div></section>
 
     {query.isLoading ? <div className="surface-panel p-6 text-sm text-muted-foreground">Loading affiliate network…</div> : null}
     {query.isError ? <div className="surface-panel p-6 text-sm text-destructive">{(query.error as Error).message}</div> : null}
     {!query.isLoading && !query.isError ? <div className="surface-panel divide-y divide-border">{links.length === 0 ? <div className="p-8 text-center"><Link2 className="mx-auto size-6 text-primary" aria-hidden /><p className="mt-3 font-medium">No affiliate links yet</p><p className="mt-1 text-sm text-muted-foreground">Add direct product links first. Category links can act as fallback when there is no exact product match.</p></div> : links.map((link) => <div key={link.id} className="flex flex-wrap items-center gap-3 p-4"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{link.name}</p><Badge variant={link.enabled ? "default" : "secondary"}>{link.enabled ? "Enabled" : "Disabled"}</Badge><Badge variant="outline">{link.platform}</Badge><Badge variant="outline">{link.link_type}</Badge></div><a href={link.destination_url} target="_blank" rel="noreferrer" className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs text-primary hover:underline">{link.destination_url}<ExternalLink className="size-3" aria-hidden /></a><p className="mt-2 text-xs text-muted-foreground"><span className="font-medium text-foreground">Keywords:</span> {link.keywords}</p><p className="mt-1 text-xs text-muted-foreground"><span className="font-medium text-foreground">CTA:</span> {link.cta_text} · <span className="font-medium text-foreground">Priority:</span> {link.priority} · <span className="font-medium text-foreground">Clicks:</span> {link.click_count}</p><p className="mt-1 text-xs text-muted-foreground">Redirect: /go/{link.short_code}</p></div><Button size="sm" variant="outline" onClick={() => editLink(link)}><Pencil aria-hidden />Edit</Button><Button size="sm" variant="outline" disabled={remove.isPending} onClick={() => { if (window.confirm(`Remove ${link.name}?`)) remove.mutate(link.id); }}><Trash2 aria-hidden />Remove</Button></div>)}</div> : null}
 
-    <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) setForm(emptyForm); }}><DialogContent><DialogHeader><DialogTitle>{form.id ? "Edit affiliate link" : "Add affiliate link"}</DialogTitle><DialogDescription>Use direct product links where possible. Keywords decide which article can receive this CTA.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="UGREEN 20000mAh Power Bank" /></div><div className="space-y-2"><Label>Affiliate destination URL</Label><Input value={form.destinationUrl} onChange={(e) => setForm({ ...form, destinationUrl: e.target.value })} placeholder="https://s.shopee.com.my/..." /></div><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Platform</Label><Select value={form.platform} onValueChange={(platform: any) => setForm({ ...form, platform })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="shopee">Shopee</SelectItem><SelectItem value="tiktok">TikTok</SelectItem><SelectItem value="amazon">Amazon</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Link type</Label><Select value={form.linkType} onValueChange={(linkType: any) => setForm({ ...form, linkType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="product">Product</SelectItem><SelectItem value="category">Category fallback</SelectItem></SelectContent></Select></div></div><div className="space-y-2"><Label>Category (optional)</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Power banks" /></div><div className="space-y-2"><Label>Matching keywords</Label><Textarea value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} placeholder="powerbank, fast charging, android battery, usb-c" /><p className="text-xs text-muted-foreground">Comma separated. Product links beat category fallback when both match.</p></div><div className="space-y-2"><Label>CTA text</Label><Input value={form.ctaText} onChange={(e) => setForm({ ...form, ctaText: e.target.value })} /></div><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Priority</Label><Input type="number" min={0} max={10000} value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) || 0 })} /></div><div className="flex items-center justify-between rounded-lg border border-border p-3"><div><p className="text-sm font-medium">Enabled</p><p className="text-xs text-muted-foreground">Allow this link to be matched.</p></div><Switch checked={form.enabled} onCheckedChange={(enabled) => setForm({ ...form, enabled })} /></div></div></div><DialogFooter><Button onClick={() => save.mutate()} disabled={save.isPending || !form.name.trim() || !form.destinationUrl.trim() || !form.keywords.trim()}>{save.isPending ? "Saving…" : "Save affiliate link"}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) setForm(emptyForm); }}><DialogContent><DialogHeader><DialogTitle>{form.id ? "Edit affiliate link" : "Add affiliate link"}</DialogTitle><DialogDescription>Use direct product links where possible. Keywords decide which article can receive this CTA.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="UGREEN 20000mAh Power Bank" /></div><div className="space-y-2"><Label>Affiliate destination URL</Label><Input value={form.destinationUrl} onChange={(e) => setForm({ ...form, destinationUrl: e.target.value })} placeholder="https://s.shopee.com.my/..." /></div><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Platform</Label><Select value={form.platform} onValueChange={(platform: any) => setForm({ ...form, platform })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="shopee">Shopee</SelectItem><SelectItem value="tiktok">TikTok</SelectItem><SelectItem value="amazon">Amazon</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Link type</Label><Select value={form.linkType} onValueChange={(linkType: any) => setForm({ ...form, linkType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="product">Product</SelectItem><SelectItem value="category">Category fallback</SelectItem></SelectContent></Select></div></div><div className="space-y-2"><Label>Category (optional)</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Power banks" /></div><div className="space-y-2"><Label>Matching keywords</Label><Textarea value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} placeholder="powerbank, fast charging, android battery, usb-c" /><p className="text-xs text-muted-foreground">Comma separated. Product links beat category fallback when both match.</p></div><div className="space-y-2"><Label>CTA text</Label><Input value={form.ctaText} onChange={(e) => setForm({ ...form, ctaText: e.target.value })} /></div><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Priority</Label><Input type="number" min={0} max={10000} value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) || 0 })} /><p className="text-xs text-muted-foreground">Lower number wins when two links have the same match score.</p></div><div className="flex items-center justify-between rounded-lg border border-border p-3"><div><p className="text-sm font-medium">Enabled</p><p className="text-xs text-muted-foreground">Allow this link to be matched.</p></div><Switch checked={form.enabled} onCheckedChange={(enabled) => setForm({ ...form, enabled })} /></div></div></div><DialogFooter><Button onClick={() => save.mutate()} disabled={save.isPending || !form.name.trim() || !form.destinationUrl.trim() || !form.keywords.trim()}>{save.isPending ? "Saving…" : "Save affiliate link"}</Button></DialogFooter></DialogContent></Dialog>
 
-    <Dialog open={csvOpen} onOpenChange={setCsvOpen}><DialogContent><DialogHeader><DialogTitle>Bulk import CSV</DialogTitle><DialogDescription>Required columns: name,destination_url,keywords. Optional: platform,link_type,category,cta_text,priority.</DialogDescription></DialogHeader><Textarea rows={12} value={csv} onChange={(e) => setCsv(e.target.value)} placeholder={'name,destination_url,keywords,platform,link_type,category,cta_text,priority\nUGREEN Power Bank,https://s.shopee.com.my/...,powerbank|charging,shopee,product,Power banks,Semak harga terkini,200'} /><DialogFooter><Button onClick={() => importCsv.mutate()} disabled={!csv.trim() || importCsv.isPending}>{importCsv.isPending ? "Importing…" : "Import CSV"}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={csvOpen} onOpenChange={setCsvOpen}><DialogContent><DialogHeader><DialogTitle>Bulk import CSV</DialogTitle><DialogDescription>Required columns: name,destination_url,keywords. Optional: platform,link_type,category,cta_text,priority. Quote keyword cells that contain commas.</DialogDescription></DialogHeader><Textarea rows={12} value={csv} onChange={(e) => setCsv(e.target.value)} placeholder={'name,destination_url,keywords,platform,link_type,category,cta_text,priority\nUGREEN Power Bank,https://s.shopee.com.my/...,"powerbank, fast charging, usb-c",shopee,product,Power banks,Semak harga terkini,50'} /><DialogFooter><Button onClick={() => importCsv.mutate()} disabled={!csv.trim() || importCsv.isPending}>{importCsv.isPending ? "Importing…" : "Import CSV"}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) { return <div className="surface-panel p-5"><p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="font-display mt-2 text-2xl font-bold">{value}</p></div>; }
-
-function NumberSetting({ label, value, onSave }: { label: string; value: number; onSave: (value: number) => void }) {
-  const [local, setLocal] = useState(value);
-  return <div className="space-y-2"><Label>{label}</Label><Input type="number" value={local} onChange={(e) => setLocal(Number(e.target.value) || 0)} onBlur={() => onSave(local)} /></div>;
-}
+function NumberSetting({ label, value, onSave }: { label: string; value: number; onSave: (value: number) => void }) { const [local, setLocal] = useState(value); return <div className="space-y-2"><Label>{label}</Label><Input type="number" value={local} onChange={(e) => setLocal(Number(e.target.value) || 0)} onBlur={() => onSave(local)} /></div>; }
